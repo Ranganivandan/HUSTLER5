@@ -93,6 +93,8 @@ export const authApi = {
   refresh: () =>
     apiClient.post<{ accessToken: string }>('/v1/auth/refresh'),
   logout: () => apiClient.post<void>('/v1/auth/logout'),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiClient.post<{ success: boolean; message: string }>('/v1/auth/change-password', data),
 };
 
 // Users API
@@ -108,8 +110,8 @@ export const usersApi = {
     );
   },
   get: (id: string) => apiClient.get<{ id: string; name: string; email: string; role: { name: string }; isActive: boolean }>(`/v1/users/${id}`),
-  create: (data: { email: string; name: string; password: string; role?: 'employee'|'hr'|'payroll'|'admin'; sendInvite?: boolean }) =>
-    apiClient.post<{ id: string; name: string; email: string; roleId: string; isActive: boolean }>(`/v1/users`, data),
+  create: (data: { email: string; name: string; password?: string; role?: 'employee'|'hr'|'payroll'|'admin'; department?: string; sendCredentials?: boolean }) =>
+    apiClient.post<{ user: { id: string; name: string; email: string; roleId: string; isActive: boolean }; message: string; generatedPassword?: string }>(`/v1/users`, data),
   update: (id: string, data: { role?: 'employee'|'hr'|'payroll'|'admin'; isActive?: boolean }) =>
     apiClient.put<{ id: string; name: string; email: string; roleId: string; isActive: boolean }>(`/v1/users/${id}`, data),
   remove: (id: string) => apiClient.delete<void>(`/v1/users/${id}`),
@@ -148,6 +150,12 @@ export const attendanceApi = {
     if (params.month) q.set('month', params.month);
     return apiClient.get<Array<{ id: string; userId: string; date: string; checkIn?: string; checkOut?: string; metadata?: any }>>(`/v1/attendance${q.toString() ? `?${q.toString()}` : ''}`);
   },
+  listAll: (params: { userId?: string; month?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.userId) q.set('userId', params.userId);
+    if (params.month) q.set('month', params.month);
+    return apiClient.get<Array<{ id: string; userId: string; date: string; checkIn?: string; checkOut?: string; metadata?: any; user?: any }>>(`/v1/attendance/all${q.toString() ? `?${q.toString()}` : ''}`);
+  },
   stats: (params: { userId?: string; month?: string } = {}) => {
     const q = new URLSearchParams();
     if (params.userId) q.set('userId', params.userId);
@@ -160,9 +168,18 @@ export const attendanceApi = {
     if (params.department) q.set('department', params.department);
     return apiClient.get<Array<{ userId: string; name: string; employeeCode: string; present: number; absent: number; leaves: number; percentage: number }>>(`/v1/attendance/summary${q.toString() ? `?${q.toString()}` : ''}`);
   },
-  checkin: (data: { method: 'manual'|'face'|'mobile'; publicId?: string }) =>
-    apiClient.post<{ record: any; faceVerified?: boolean; score?: number; reason?: string }>(`/v1/attendance/checkin`, data),
-  checkout: () => apiClient.post(`/v1/attendance/checkout`),
+  checkin: (data: { method: 'manual'|'face'|'mobile'; publicId?: string; location?: { lat: number; lng: number; address?: string } }) =>
+    apiClient.post<{ record: any; faceVerified?: boolean; score?: number; reason?: string; distance?: number }>(`/v1/attendance/checkin`, data),
+  checkout: (data?: { location?: { lat: number; lng: number; address?: string } }) => apiClient.post(`/v1/attendance/checkout`, data || {}),
+};
+
+// Office Location API
+export const officeLocationApi = {
+  get: () => apiClient.get<{ lat: number; lng: number; address?: string; radius: number; name?: string } | null>(`/v1/office-location`),
+  set: (data: { lat: number; lng: number; address?: string; radius: number; name?: string }) =>
+    apiClient.post<{ message: string; location: any }>(`/v1/office-location`, data),
+  delete: () => apiClient.delete<{ message: string }>(`/v1/office-location`),
+  check: () => apiClient.get<{ configured: boolean }>(`/v1/office-location/check`),
 };
 
 // Leaves API
@@ -303,4 +320,9 @@ export const reportsApi = {
     if (params.range) q.set('range', params.range);
     return apiClient.get<any>(`/v1/reports/employee-growth?${q.toString()}`);
   },
+};
+
+// Public API (no authentication required)
+export const publicApi = {
+  getStats: () => apiClient.get<{ success: boolean; data: { totalCompanies: number; totalEmployees: number; totalDepartments: number } }>('/v1/public/stats'),
 };

@@ -19,12 +19,31 @@ export const ProfileRepository = {
     ]);
     return { items, total, page, limit };
   },
-  upsertByUserId: (userId: string, data: { phone?: string; designation?: string; workLocation?: string; photoPublicId?: string }) =>
-    prisma.employeeProfile.upsert({
+  upsertByUserId: async (userId: string, data: { phone?: string; designation?: string; workLocation?: string; photoPublicId?: string }) => {
+    // Get user name for employee code generation if creating new profile
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    const userName = user?.name || 'Unknown User';
+    
+    const year = new Date().getFullYear().toString().slice(-2);
+    const count = await prisma.employeeProfile.count();
+    const sequence = String(count + 1).padStart(5, '0');
+    const nameParts = userName.trim().split(/\s+/);
+    let initials = '';
+    if (nameParts.length >= 2) {
+      initials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+    } else if (nameParts.length === 1 && nameParts[0].length >= 2) {
+      initials = nameParts[0].slice(0, 2).toUpperCase();
+    } else {
+      initials = nameParts[0] ? (nameParts[0][0] + nameParts[0][0]).toUpperCase() : 'XX';
+    }
+    const employeeCode = `OI${initials}${year}${sequence}`;
+    
+    return prisma.employeeProfile.upsert({
       where: { userId },
-      create: { userId, phone: data.phone, designation: data.designation, metadata: { workLocation: data.workLocation, photoPublicId: data.photoPublicId } as any, employeeCode: `WZ-${userId.slice(0,8)}` },
+      create: { userId, phone: data.phone, designation: data.designation, metadata: { workLocation: data.workLocation, photoPublicId: data.photoPublicId } as any, employeeCode },
       update: { phone: data.phone, designation: data.designation, metadata: { workLocation: data.workLocation, photoPublicId: data.photoPublicId } as any },
-    }),
+    });
+  },
   setParsedResume: (userId: string, parsed: unknown) =>
     prisma.employeeProfile.update({ where: { userId }, data: { parsed_resume: parsed as any } }),
 };

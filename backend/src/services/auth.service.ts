@@ -40,7 +40,23 @@ export async function signup(email: string, password: string, fullName: string) 
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({ data: { email, name: fullName, passwordHash, roleId: role.id } });
-    await tx.employeeProfile.create({ data: { userId: created.id, employeeCode: `WZ-${created.id.slice(0, 8)}` } });
+    
+    // Generate employee code based on name
+    const year = new Date().getFullYear().toString().slice(-2);
+    const count = await tx.employeeProfile.count();
+    const sequence = String(count + 1).padStart(5, '0');
+    const nameParts = fullName.trim().split(/\s+/);
+    let initials = '';
+    if (nameParts.length >= 2) {
+      initials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+    } else if (nameParts.length === 1 && nameParts[0].length >= 2) {
+      initials = nameParts[0].slice(0, 2).toUpperCase();
+    } else {
+      initials = nameParts[0] ? (nameParts[0][0] + nameParts[0][0]).toUpperCase() : 'XX';
+    }
+    const employeeCode = `OI${initials}${year}${sequence}`;
+    
+    await tx.employeeProfile.create({ data: { userId: created.id, employeeCode } });
     return created;
   });
 
@@ -111,6 +127,30 @@ export async function logout(refreshToken?: string, userId?: string) {
   if (userId) {
     await SessionRepository.revokeAllForUser(userId);
   }
+}
+
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  
+  // Verify current password
+  const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw Object.assign(new Error('Current password is incorrect'), { status: 401 });
+  }
+  
+  // Hash new password
+  const newPasswordHash = await bcrypt.hash(newPassword, config.bcryptRounds);
+  
+  // Update password
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: newPasswordHash },
+  });
+  
+  // Revoke all existing sessions for security (force re-login)
+  await SessionRepository.revokeAllForUser(userId);
+  
+  return { success: true };
 }
 
 export function parseTtlMs(ttl: string): number {

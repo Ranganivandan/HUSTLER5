@@ -23,8 +23,16 @@ export async function createHandler(req: AuthRequest, res: Response) {
   const actorId = req.user?.sub as string;
   const ip = req.ip;
   const userAgent = req.get('user-agent') || undefined;
-  const user = await createUser({ ...parsed.data, actorId, ip, userAgent });
-  return res.status(201).json(user);
+  const result = await createUser({ ...parsed.data, actorId, ip, userAgent });
+  
+  // Return user with generated password if applicable
+  return res.status(201).json({
+    user: result.user,
+    message: result.generatedPassword 
+      ? 'User created successfully. Credentials have been sent to their email.' 
+      : 'User created successfully.',
+    generatedPassword: result.generatedPassword, // Only present if auto-generated
+  });
 }
 
 export async function updateHandler(req: AuthRequest, res: Response) {

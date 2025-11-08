@@ -6,14 +6,32 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Building2 } from 'lucide-react';
+import { Building2, Users, TrendingUp, Shield } from 'lucide-react';
+import { publicApi } from '@/lib/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState({ totalCompanies: 0, totalEmployees: 0, totalDepartments: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
   const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  // Fetch public stats on component mount
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await publicApi.getStats();
+        setStats(response.data);
+      } catch (error) {
+        console.error('Failed to fetch stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -72,16 +90,28 @@ export default function Login() {
 
         <div className="grid grid-cols-3 gap-8 text-primary-foreground/90">
           <div>
-            <div className="text-3xl font-bold">500+</div>
+            {statsLoading ? (
+              <div className="h-10 w-20 bg-primary-foreground/20 animate-pulse rounded" />
+            ) : (
+              <div className="text-3xl font-bold">{stats.totalCompanies.toLocaleString()}+</div>
+            )}
             <div className="text-sm">Companies</div>
           </div>
           <div>
-            <div className="text-3xl font-bold">10k+</div>
+            {statsLoading ? (
+              <div className="h-10 w-20 bg-primary-foreground/20 animate-pulse rounded" />
+            ) : (
+              <div className="text-3xl font-bold">{stats.totalEmployees.toLocaleString()}+</div>
+            )}
             <div className="text-sm">Employees</div>
           </div>
           <div>
-            <div className="text-3xl font-bold">99.9%</div>
-            <div className="text-sm">Uptime</div>
+            {statsLoading ? (
+              <div className="h-10 w-20 bg-primary-foreground/20 animate-pulse rounded" />
+            ) : (
+              <div className="text-3xl font-bold">{stats.totalDepartments}+</div>
+            )}
+            <div className="text-sm">Departments</div>
           </div>
         </div>
       </div>

@@ -34,6 +34,7 @@ const Reports = lazy(() => import("./pages/payroll/Reports"));
 
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminOfficeLocation = lazy(() => import("./pages/admin/OfficeLocation"));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
 const AdminAudit = lazy(() => import("./pages/admin/Audit"));
 const AdminReports = lazy(() => import("./pages/admin/Reports"));
@@ -182,6 +183,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/office-location"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminOfficeLocation />
                 </ProtectedRoute>
               }
             />

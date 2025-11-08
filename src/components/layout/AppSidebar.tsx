@@ -10,6 +10,7 @@ import {
   Play,
   Palette,
   Sliders,
+  MapPin,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -49,6 +50,7 @@ const navigationByRole = {
   admin: [
     { title: 'Dashboard', url: '/admin/dashboard', icon: LayoutDashboard },
     { title: 'Users', url: '/admin/users', icon: Users },
+    { title: 'Office Location', url: '/admin/office-location', icon: MapPin },
     { title: 'Settings', url: '/admin/settings', icon: Settings },
     { title: 'Audit Logs', url: '/admin/audit', icon: FileText },
     { title: 'Reports', url: '/admin/reports', icon: FileText },
