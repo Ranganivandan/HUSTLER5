@@ -27,6 +27,57 @@ const actionColors = {
   system: 'bg-blue-500/10 text-blue-700 border-blue-200',
 };
 
+// Format metadata into human-readable text
+const formatDetails = (meta: any, action: string): string => {
+  if (!meta || Object.keys(meta).length === 0) return 'No additional details';
+  
+  const parts: string[] = [];
+  
+  // Email
+  if (meta.email) parts.push(`Email: ${meta.email}`);
+  
+  // Role
+  if (meta.role) parts.push(`Role: ${meta.role}`);
+  
+  // Days (for leaves)
+  if (meta.days !== undefined) parts.push(`${meta.days} day(s)`);
+  
+  // Reason (for leave rejection)
+  if (meta.reason) parts.push(`Reason: ${meta.reason}`);
+  
+  // Active status
+  if (meta.isActive !== undefined) parts.push(`Status: ${meta.isActive ? 'Active' : 'Inactive'}`);
+  
+  // Soft delete
+  if (meta.soft) parts.push('Soft delete');
+  
+  // Period (for payroll)
+  if (meta.period) parts.push(`Period: ${meta.period}`);
+  
+  // Employee count
+  if (meta.employeeCount) parts.push(`${meta.employeeCount} employees`);
+  
+  // Time
+  if (meta.time) parts.push(`Time: ${meta.time}`);
+  
+  // IP address
+  if (meta.ip) parts.push(`IP: ${meta.ip}`);
+  
+  // Category (for settings)
+  if (meta.category) parts.push(`Category: ${meta.category}`);
+  
+  // If we have formatted parts, return them
+  if (parts.length > 0) return parts.join(', ');
+  
+  // Fallback: show key-value pairs in readable format
+  return Object.entries(meta)
+    .map(([key, value]) => {
+      const formattedKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+      return `${formattedKey}: ${value}`;
+    })
+    .join(', ');
+};
+
 export function AuditTable() {
   const [search, setSearch] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -44,7 +95,7 @@ export function AuditTable() {
         role: r.user?.role?.name || 'System',
         action: r.action,
         target: r.entity || 'Unknown',
-        details: JSON.stringify(r.meta || {}),
+        details: formatDetails(r.meta, r.action),
         type: r.action.toLowerCase().includes('create') ? 'created' : r.action.toLowerCase().includes('update') ? 'updated' : r.action.toLowerCase().includes('delete') ? 'deleted' : 'system',
       }));
       setLogs(rows);

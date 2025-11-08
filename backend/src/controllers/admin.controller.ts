@@ -21,8 +21,9 @@ export async function getAnomalies(req: AuthRequest, res: Response) {
 }
 
 export async function deleteUser(req: AuthRequest, res: Response) {
+  const requestorId = req.user!.sub;
   const role = req.user!.role;
   const userId = req.params.id;
-  const user = await AdminService.deleteUser(role, userId);
+  const user = await AdminService.deleteUser(requestorId, role, userId);
   return res.json({ success: true, user });
 }
