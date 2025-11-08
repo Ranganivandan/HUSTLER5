@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,63 +20,75 @@ import {
 } from '@/components/ui/select';
 import { Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { leavesApi, usersApi } from '@/lib/api';
 
-const mockLeaveRequests = [
-  {
-    id: '1',
-    employeeId: 'WZ-1001',
-    name: 'Asha Patel',
-    department: 'Product',
-    type: 'Privilege',
-    fromDate: '2025-11-15',
-    toDate: '2025-11-17',
-    days: 3,
-    status: 'pending',
-    reason: 'Family event',
-    appliedDate: '2025-11-01',
-  },
-  {
-    id: '2',
-    employeeId: 'WZ-1002',
-    name: 'Rohan Mehta',
-    department: 'Sales',
-    type: 'Sick',
-    fromDate: '2025-11-10',
-    toDate: '2025-11-10',
-    days: 1,
-    status: 'pending',
-    reason: 'Medical appointment',
-    appliedDate: '2025-11-08',
-  },
-  {
-    id: '3',
-    employeeId: 'WZ-1003',
-    name: 'Priya Singh',
-    department: 'Marketing',
-    type: 'Casual',
-    fromDate: '2025-11-20',
-    toDate: '2025-11-21',
-    days: 2,
-    status: 'approved',
-    reason: 'Personal work',
-    appliedDate: '2025-11-05',
-  },
-];
+type LeaveRow = { id: string; employeeId: string; name: string; department: string; type: string; fromDate: string; toDate: string; days: number; status: string; reason: string; appliedDate: string };
 
 export default function Leaves() {
   const [filterStatus, setFilterStatus] = useState('all');
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [usersMap, setUsersMap] = useState<Record<string, any>>({});
 
-  const handleApprove = (id: string, name: string) => {
-    toast.success(`Leave approved for ${name}`);
+  const load = async () => {
+    setLoading(true);
+    try {
+      // Load all users for name mapping
+      const usersRes = await usersApi.list({ page: 1, limit: 100 });
+      const umap: Record<string, any> = {};
+      usersRes.items.forEach((u: any) => { umap[u.id] = u; });
+      setUsersMap(umap);
+
+      // Load all leaves (HR sees all)
+      const status = filterStatus === 'all' ? undefined : (filterStatus.toUpperCase() as any);
+      const res = await leavesApi.list({ page: 1, limit: 100, status });
+      const rows: LeaveRow[] = res.items.map((r) => {
+        const user = umap[r.userId] || {};
+        return {
+          id: r.id,
+          employeeId: user.id?.slice(0,8) || r.userId.slice(0,8),
+          name: user.name || 'Unknown',
+          department: 'N/A',
+          type: r.type,
+          fromDate: r.startDate.slice(0,10),
+          toDate: r.endDate.slice(0,10),
+          days: (r.metadata?.days as number) ?? 0,
+          status: r.status.toLowerCase(),
+          reason: r.reason || '',
+          appliedDate: r.createdAt.slice(0,10),
+        };
+      });
+      setLeaves(rows);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load leaves');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = (id: string, name: string) => {
-    toast.error(`Leave rejected for ${name}`);
+  useEffect(() => { load(); }, [filterStatus]);
+
+  const handleApprove = async (id: string, name: string) => {
+    try {
+      await leavesApi.approve(id);
+      toast.success(`Leave approved for ${name}`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to approve');
+    }
   };
 
-  const filteredRequests = filterStatus === 'all' 
-    ? mockLeaveRequests 
-    : mockLeaveRequests.filter(req => req.status === filterStatus);
+  const handleReject = async (id: string, name: string) => {
+    try {
+      await leavesApi.reject(id, 'Rejected by HR');
+      toast.error(`Leave rejected for ${name}`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to reject');
+    }
+  };
+
+  const filteredRequests = leaves;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -132,7 +144,11 @@ export default function Leaves() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRequests.map((request) => (
+                {loading ? (
+                  <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
+                ) : filteredRequests.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center">No leave requests found</TableCell></TableRow>
+                ) : filteredRequests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell>
                       <div>

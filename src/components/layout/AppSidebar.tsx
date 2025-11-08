@@ -50,7 +50,8 @@ const navigationByRole = {
     { title: 'Dashboard', url: '/admin/dashboard', icon: LayoutDashboard },
     { title: 'Users', url: '/admin/users', icon: Users },
     { title: 'Settings', url: '/admin/settings', icon: Settings },
-    { title: 'Audit', url: '/admin/audit', icon: FileText },
+    { title: 'Audit Logs', url: '/admin/audit', icon: FileText },
+    { title: 'Reports', url: '/admin/reports', icon: FileText },
   ],
 };
 
