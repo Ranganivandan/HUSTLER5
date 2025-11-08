@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,10 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Play, Download, Eye, Edit, Save, FileText } from 'lucide-react';
+import { Play, Download, Eye, Edit, Save, FileText, Check, X } from 'lucide-react';
 import { PercentageSlider } from '@/components/payroll/PercentageSlider';
 import { ConfigTemplateModal } from '@/components/payroll/ConfigTemplateModal';
 import { toast } from '@/hooks/use-toast';
+import { payrollApi, profileApi, attendanceApi } from '@/lib/api';
+import { toast as sonnerToast } from 'sonner';
 
 interface PayrollEmployee {
   id: string;
@@ -28,13 +30,6 @@ interface PayrollEmployee {
   netPay?: number;
 }
 
-const mockEmployees: PayrollEmployee[] = [
-  { id: 'emp_1001', name: 'Asha Patel', employeeCode: 'WZ-1001', department: 'Product', basicPay: 50000, officeScore: 8.5, attendance: 22, leaves: 0 },
-  { id: 'emp_1002', name: 'Rajesh Kumar', employeeCode: 'WZ-1002', department: 'Engineering', basicPay: 60000, officeScore: 9.2, attendance: 21, leaves: 1 },
-  { id: 'emp_1003', name: 'Priya Singh', employeeCode: 'WZ-1003', department: 'Sales', basicPay: 45000, officeScore: 7.8, attendance: 20, leaves: 2 },
-  { id: 'emp_1004', name: 'Vikram Mehta', employeeCode: 'WZ-1004', department: 'Engineering', basicPay: 65000, officeScore: 9.5, attendance: 22, leaves: 0 },
-  { id: 'emp_1005', name: 'Anita Desai', employeeCode: 'WZ-1005', department: 'HR', basicPay: 48000, officeScore: 8.0, attendance: 21, leaves: 1 },
-];
 
 export default function Payruns() {
   const [selectedPeriod, setSelectedPeriod] = useState('2025-11');
@@ -43,6 +38,9 @@ export default function Payruns() {
   const [isCalculated, setIsCalculated] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState('default');
+  const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
+  const [submitting, setSubmitting] = useState(false);
   
   // Payroll configuration
   const [config, setConfig] = useState({
@@ -57,11 +55,103 @@ export default function Payruns() {
   });
 
   const [calculatedEmployees, setCalculatedEmployees] = useState<PayrollEmployee[]>([]);
+  const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Partial<PayrollEmployee>>({});
+
+  useEffect(() => {
+    loadEmployees();
+  }, []); // Load once on mount
+
+  const loadEmployees = async () => {
+    setLoading(true);
+    try {
+      // Load all employee profiles
+      const profiles = await profileApi.list({ page: 1, limit: 100 });
+      
+      if (!profiles.items || profiles.items.length === 0) {
+        sonnerToast.info('No employees found. Please add employees first.');
+        setEmployees([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Get attendance for selected period
+      const [year, month] = selectedPeriod.split('-');
+      const monthStr = `${year}-${month}`;
+      
+      // Map employees without parallel attendance calls to avoid overwhelming the API
+      const employeeData: PayrollEmployee[] = profiles.items.map((p: any) => {
+        // Debug: Log department data
+        if (!p.department) {
+          console.warn('Employee missing department:', p.user?.name, p);
+        }
+        
+        return {
+          id: p.userId,
+          name: p.user?.name || 'Unknown',
+          employeeCode: p.employeeCode || 'N/A',
+          department: p.department || 'Unassigned',
+          basicPay: (p.metadata?.basicSalary as number) || 30000,
+          officeScore: 8.0, // TODO: Get from performance data
+          attendance: 22, // Default working days, will be calculated during payroll run
+          leaves: 0,
+        };
+      });
+      
+      setEmployees(employeeData);
+      sonnerToast.success(`Loaded ${employeeData.length} employees`);
+    } catch (e) {
+      sonnerToast.error(e instanceof Error ? e.message : 'Failed to load employees');
+      console.error('Load employees error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditEmployee = (emp: PayrollEmployee) => {
+    setEditingEmployee(emp.id);
+    setEditValues({
+      basicPay: emp.basicPay,
+      grossPay: emp.grossPay,
+      totalDeductions: emp.totalDeductions,
+      netPay: emp.netPay,
+    });
+  };
+
+  const handleSaveEdit = (empId: string) => {
+    setCalculatedEmployees(prev => 
+      prev.map(emp => {
+        if (emp.id === empId) {
+          const basicPay = editValues.basicPay ?? emp.basicPay;
+          const grossPay = editValues.grossPay ?? emp.grossPay ?? 0;
+          const totalDeductions = editValues.totalDeductions ?? emp.totalDeductions ?? 0;
+          const netPay = editValues.netPay ?? (grossPay - totalDeductions);
+          
+          return {
+            ...emp,
+            basicPay,
+            grossPay,
+            totalDeductions,
+            netPay,
+          };
+        }
+        return emp;
+      })
+    );
+    setEditingEmployee(null);
+    setEditValues({});
+    sonnerToast.success('Employee payroll updated');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEmployee(null);
+    setEditValues({});
+  };
 
   const calculatePayroll = () => {
     const filtered = selectedDepartment === 'all' 
-      ? mockEmployees 
-      : mockEmployees.filter(e => e.department === selectedDepartment);
+      ? employees 
+      : employees.filter(e => e.department === selectedDepartment);
 
     const calculated = filtered.map(emp => {
       const basic = emp.basicPay;
@@ -89,12 +179,55 @@ export default function Payruns() {
     toast({ title: 'Payroll Calculated', description: `${calculated.length} employees processed` });
   };
 
-  const confirmPayrun = () => {
-    toast({ 
-      title: 'Pay Run Confirmed', 
-      description: 'Payslips have been generated and sent to employees',
-      duration: 3000,
-    });
+  const confirmPayrun = async () => {
+    setSubmitting(true);
+    try {
+      // Check if user is still authenticated
+      const token = localStorage.getItem('workzen_access_token');
+      if (!token) {
+        sonnerToast.error('Session expired. Please login again.');
+        window.location.href = '/login';
+        return;
+      }
+      
+      // Calculate period dates
+      const [year, month] = selectedPeriod.split('-');
+      const periodStart = `${year}-${month}-01`;
+      const lastDay = new Date(Number(year), Number(month), 0).getDate();
+      const periodEnd = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+      
+      // Run payroll via backend
+      await payrollApi.run({ periodStart, periodEnd });
+      
+      toast({ 
+        title: 'Pay Run Confirmed', 
+        description: 'Payslips have been generated and sent to employees',
+        duration: 3000,
+      });
+      
+      sonnerToast.success('Payroll run completed successfully!');
+      
+      // Reset state
+      setIsCalculated(false);
+      setCalculatedEmployees([]);
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : 'Failed to run payroll';
+      
+      // Handle 401 Unauthorized specifically
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('invalid token')) {
+        sonnerToast.error('Session expired. Please login again.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else if (errorMessage.includes('409') || errorMessage.includes('already exists')) {
+        sonnerToast.error('Payrun already exists for this month. Choose a different period.');
+      } else {
+        sonnerToast.error(errorMessage);
+      }
+      console.error('Payroll run error:', e);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const updateConfig = (key: string, value: number) => {
@@ -165,9 +298,9 @@ export default function Payruns() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button onClick={calculatePayroll} className="gap-2">
+                  <Button onClick={calculatePayroll} className="gap-2" disabled={loading || employees.length === 0}>
                     <Play className="h-4 w-4" />
-                    Run Payroll Calculation
+                    {loading ? 'Loading...' : 'Run Payroll Calculation'}
                   </Button>
                   <Button variant="outline" onClick={() => setShowTemplateModal(true)}>
                     Load Template
@@ -182,8 +315,8 @@ export default function Payruns() {
                 <CardDescription>
                   {selectedDepartment === 'all' ? 'All departments' : selectedDepartment} - {
                     selectedDepartment === 'all' 
-                      ? mockEmployees.length 
-                      : mockEmployees.filter(e => e.department === selectedDepartment).length
+                      ? employees.length 
+                      : employees.filter(e => e.department === selectedDepartment).length
                   } employees
                 </CardDescription>
               </CardHeader>
@@ -200,7 +333,11 @@ export default function Payruns() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(selectedDepartment === 'all' ? mockEmployees : mockEmployees.filter(e => e.department === selectedDepartment)).map(emp => (
+                    {loading ? (
+                      <TableRow><TableCell colSpan={6} className="text-center">Loading employees...</TableCell></TableRow>
+                    ) : employees.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center">No employees found</TableCell></TableRow>
+                    ) : (selectedDepartment === 'all' ? employees : employees.filter(e => e.department === selectedDepartment)).map(emp => (
                       <TableRow key={emp.id}>
                         <TableCell className="font-medium">{emp.name}</TableCell>
                         <TableCell>{emp.employeeCode}</TableCell>
@@ -361,18 +498,75 @@ export default function Payruns() {
                               <p className="text-sm text-muted-foreground">{emp.employeeCode}</p>
                             </div>
                           </TableCell>
-                          <TableCell>₹{emp.basicPay.toLocaleString()}</TableCell>
-                          <TableCell>₹{emp.grossPay?.toLocaleString()}</TableCell>
-                          <TableCell className="text-destructive">₹{emp.totalDeductions?.toLocaleString()}</TableCell>
-                          <TableCell className="font-semibold text-primary">₹{emp.netPay?.toLocaleString()}</TableCell>
+                          <TableCell>
+                            {editingEmployee === emp.id ? (
+                              <Input
+                                type="number"
+                                value={editValues.basicPay ?? emp.basicPay}
+                                onChange={(e) => setEditValues(prev => ({ ...prev, basicPay: Number(e.target.value) }))}
+                                className="w-28"
+                              />
+                            ) : (
+                              `₹${emp.basicPay.toLocaleString()}`
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingEmployee === emp.id ? (
+                              <Input
+                                type="number"
+                                value={editValues.grossPay ?? emp.grossPay}
+                                onChange={(e) => setEditValues(prev => ({ ...prev, grossPay: Number(e.target.value) }))}
+                                className="w-28"
+                              />
+                            ) : (
+                              `₹${emp.grossPay?.toLocaleString()}`
+                            )}
+                          </TableCell>
+                          <TableCell className="text-destructive">
+                            {editingEmployee === emp.id ? (
+                              <Input
+                                type="number"
+                                value={editValues.totalDeductions ?? emp.totalDeductions}
+                                onChange={(e) => setEditValues(prev => ({ ...prev, totalDeductions: Number(e.target.value) }))}
+                                className="w-28"
+                              />
+                            ) : (
+                              `₹${emp.totalDeductions?.toLocaleString()}`
+                            )}
+                          </TableCell>
+                          <TableCell className="font-semibold text-primary">
+                            {editingEmployee === emp.id ? (
+                              <Input
+                                type="number"
+                                value={editValues.netPay ?? emp.netPay}
+                                onChange={(e) => setEditValues(prev => ({ ...prev, netPay: Number(e.target.value) }))}
+                                className="w-28"
+                              />
+                            ) : (
+                              `₹${emp.netPay?.toLocaleString()}`
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Eye className="h-4 w-4" />
-                              </Button>
+                              {editingEmployee === emp.id ? (
+                                <>
+                                  <Button variant="default" size="sm" onClick={() => handleSaveEdit(emp.id)}>
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button variant="ghost" size="sm" onClick={() => handleEditEmployee(emp)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -381,9 +575,9 @@ export default function Payruns() {
                   </Table>
 
                   <div className="flex gap-3 pt-4">
-                    <Button onClick={confirmPayrun} className="gap-2">
+                    <Button onClick={confirmPayrun} className="gap-2" disabled={submitting || calculatedEmployees.length === 0}>
                       <FileText className="h-4 w-4" />
-                      Confirm Pay Run & Generate Payslips
+                      {submitting ? 'Processing...' : 'Confirm Pay Run & Generate Payslips'}
                     </Button>
                     <Button variant="outline" className="gap-2">
                       <Download className="h-4 w-4" />

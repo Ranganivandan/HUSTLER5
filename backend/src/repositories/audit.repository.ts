@@ -1,4 +1,5 @@
 import { prisma } from '../services/prisma.service';
+import { formatAuditAction, formatAuditTime } from '../utils/audit-formatter';
 
 export const AuditRepository = {
   list: async (page: number, limit: number, filters: { entity?: string; action?: string; userId?: string }) => {
@@ -12,7 +13,21 @@ export const AuditRepository = {
       prisma.auditLog.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: { user: true } }),
       prisma.auditLog.count({ where }),
     ]);
-    return { items, total, page, limit };
+    
+    // Format audit logs with human-readable descriptions
+    const formattedItems = items.map((item) => ({
+      ...item,
+      description: formatAuditAction({
+        action: item.action,
+        entity: item.entity || undefined,
+        entityId: item.entityId || undefined,
+        meta: item.meta,
+        user: item.user ? { name: item.user.name, email: item.user.email } : undefined,
+      }),
+      timeAgo: formatAuditTime(item.createdAt),
+    }));
+    
+    return { items: formattedItems, total, page, limit };
   },
 
   create: (data: { userId?: string; action: string; entity?: string; entityId?: string; ip?: string; userAgent?: string; meta?: unknown }) =>

@@ -108,6 +108,45 @@ async function main() {
     }
   }
 
+  // Initialize default settings
+  const settingsCount = await prisma.companySettings.count();
+  if (settingsCount === 0) {
+    const defaultSettings = [
+      // Company
+      { key: 'company.companyName', category: 'company', value: 'WorkZen Technologies' },
+      { key: 'company.fiscalYearStart', category: 'company', value: '2025-04' },
+      { key: 'company.currency', category: 'company', value: 'INR' },
+      { key: 'company.timezone', category: 'company', value: 'Asia/Kolkata' },
+      { key: 'company.address', category: 'company', value: '123 Tech Park, Bangalore, Karnataka' },
+      // Attendance
+      { key: 'attendance.minHoursPerDay', category: 'attendance', value: 8 },
+      { key: 'attendance.graceTimeMinutes', category: 'attendance', value: 15 },
+      { key: 'attendance.workingDays', category: 'attendance', value: 'Monday - Saturday' },
+      { key: 'attendance.autoMarkAbsentAfterDays', category: 'attendance', value: 3 },
+      // Leaves
+      { key: 'leaves.casualLeavesYearly', category: 'leaves', value: 12 },
+      { key: 'leaves.sickLeavesYearly', category: 'leaves', value: 12 },
+      { key: 'leaves.privilegeLeavesYearly', category: 'leaves', value: 15 },
+      { key: 'leaves.maxConsecutiveDays', category: 'leaves', value: 5 },
+      { key: 'leaves.allowCarryForward', category: 'leaves', value: true },
+      // Payroll
+      { key: 'payroll.pfPercentage', category: 'payroll', value: 12 },
+      { key: 'payroll.esiPercentage', category: 'payroll', value: 1.75 },
+      { key: 'payroll.professionalTax', category: 'payroll', value: 200 },
+      { key: 'payroll.defaultBonusPercentage', category: 'payroll', value: 10 },
+      // Notifications
+      { key: 'notifications.emailAlerts', category: 'notifications', value: true },
+      { key: 'notifications.attendanceReminders', category: 'notifications', value: true },
+      { key: 'notifications.leaveApprovalNotifications', category: 'notifications', value: true },
+    ];
+
+    await prisma.companySettings.createMany({
+      data: defaultSettings,
+      skipDuplicates: true,
+    });
+    console.log('Default settings initialized');
+  }
+
   console.log('Seed complete: roles and demo users created (password: "password" for all)');
 }
 

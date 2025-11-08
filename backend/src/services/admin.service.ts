@@ -60,7 +60,7 @@ export const AdminService = {
     return Object.values(byUser).filter((u) => u.lateCount > 3); // Only show users with >3 late check-ins
   },
 
-  async deleteUser(requestorRole: string, userId: string) {
+  async deleteUser(requestorId: string, requestorRole: string, userId: string) {
     if (requestorRole !== 'admin') {
       const err: any = new Error('Forbidden');
       err.status = 403;
@@ -75,7 +75,7 @@ export const AdminService = {
 
     // Log audit
     await AuditRepository.create({
-      userId: requestorRole,
+      userId: requestorId,
       action: 'DELETE',
       entity: 'User',
       entityId: userId,

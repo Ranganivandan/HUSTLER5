@@ -208,6 +208,99 @@ export const adminApi = {
 
 // Payroll API
 export const payrollApi = {
-  getMyPayslips: () => apiClient.get<Array<{ id: string; payrunId: string; userId: string; basic: number; hra: number; bonus: number; pf: number; professionalTax: number; tds: number; gross: number; net: number; metadata?: any; createdAt: string }>>('/v1/payroll/payslips/me'),
-  getPayslipsByUserId: (userId: string) => apiClient.get<Array<{ id: string; payrunId: string; userId: string; basic: number; hra: number; bonus: number; pf: number; professionalTax: number; tds: number; gross: number; net: number; metadata?: any; createdAt: string }>>(`/v1/payroll/payslips/${userId}`),
+  // Run payroll for a period
+  run: (data: { periodStart: string; periodEnd: string }) =>
+    apiClient.post<{ id: string; year: number; month: number; status: string; metadata?: any; createdAt: string }>('/v1/payroll/run', data),
+  
+  // Get payrun by ID with payslips
+  getPayrun: (id: string) =>
+    apiClient.get<{ id: string; year: number; month: number; status: string; metadata?: any; createdAt: string; payslips: Array<any>; totals: { gross: number; net: number } }>(`/v1/payroll/${id}`),
+  
+  // Get my payslips (employee self-service)
+  getMyPayslips: () => apiClient.get<Array<{ id: string; payrunId: string; userId: string; gross: number; net: number; components?: any; createdAt: string; payrun?: any }>>('/v1/payroll/payslips/me'),
+  
+  // Get payslips by user ID (admin/payroll/hr)
+  getPayslipsByUserId: (userId: string) => apiClient.get<Array<{ id: string; payrunId: string; userId: string; gross: number; net: number; components?: any; createdAt: string; payrun?: any }>>(`/v1/payroll/payslips/${userId}`),
+};
+
+// Settings API
+export const settingsApi = {
+  // Get all settings
+  getAll: () => apiClient.get<{
+    company: {
+      companyName: string;
+      fiscalYearStart: string;
+      currency: string;
+      timezone: string;
+      address: string;
+    };
+    attendance: {
+      minHoursPerDay: number;
+      graceTimeMinutes: number;
+      workingDays: string;
+      autoMarkAbsentAfterDays: number;
+    };
+    leaves: {
+      casualLeavesYearly: number;
+      sickLeavesYearly: number;
+      privilegeLeavesYearly: number;
+      maxConsecutiveDays: number;
+      allowCarryForward: boolean;
+    };
+    payroll: {
+      pfPercentage: number;
+      esiPercentage: number;
+      professionalTax: number;
+      defaultBonusPercentage: number;
+    };
+    notifications: {
+      emailAlerts: boolean;
+      attendanceReminders: boolean;
+      leaveApprovalNotifications: boolean;
+    };
+  }>('/v1/settings'),
+  
+  // Get settings by category
+  getByCategory: (category: string) => apiClient.get<any>(`/v1/settings/${category}`),
+  
+  // Update settings by category
+  updateByCategory: (category: string, data: any) => apiClient.put<any>(`/v1/settings/${category}`, data),
+};
+
+// Reports API
+export const reportsApi = {
+  companyOverview: (params: { range?: string; department?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.range) q.set('range', params.range);
+    if (params.department && params.department !== 'all') q.set('department', params.department);
+    return apiClient.get<any>(`/v1/reports/company-overview?${q.toString()}`);
+  },
+  departmentPerformance: (params: { range?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.range) q.set('range', params.range);
+    return apiClient.get<any>(`/v1/reports/department-performance?${q.toString()}`);
+  },
+  payrollSummary: (params: { range?: string; department?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.range) q.set('range', params.range);
+    if (params.department && params.department !== 'all') q.set('department', params.department);
+    return apiClient.get<any>(`/v1/reports/payroll-summary?${q.toString()}`);
+  },
+  leaveUtilization: (params: { range?: string; department?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.range) q.set('range', params.range);
+    if (params.department && params.department !== 'all') q.set('department', params.department);
+    return apiClient.get<any>(`/v1/reports/leave-utilization?${q.toString()}`);
+  },
+  attendanceAnalytics: (params: { range?: string; department?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.range) q.set('range', params.range);
+    if (params.department && params.department !== 'all') q.set('department', params.department);
+    return apiClient.get<any>(`/v1/reports/attendance-analytics?${q.toString()}`);
+  },
+  employeeGrowth: (params: { range?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.range) q.set('range', params.range);
+    return apiClient.get<any>(`/v1/reports/employee-growth?${q.toString()}`);
+  },
 };

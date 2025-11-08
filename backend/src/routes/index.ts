@@ -8,6 +8,8 @@ import { leavesRouter } from './leaves.routes';
 import { payrollRouter } from './payroll.routes';
 import { analyticsRouter } from './analytics.routes';
 import { adminRouter } from './admin.routes';
+import settingsRouter from './settings.routes';
+import reportsRouter from './reports.routes';
 
 export const router = Router();
 
@@ -23,5 +25,7 @@ v1.use('/leaves', leavesRouter);
 v1.use('/payroll', payrollRouter);
 v1.use('/analytics', analyticsRouter);
 v1.use('/admin', adminRouter);
+v1.use('/settings', settingsRouter);
+v1.use('/reports', reportsRouter);
 
 router.use('/v1', v1);
