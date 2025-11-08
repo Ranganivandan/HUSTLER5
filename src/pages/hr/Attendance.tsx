@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,23 +20,45 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { attendanceApi } from '@/lib/api';
 
-const mockAttendanceData = [
-  { employeeId: 'WZ-1001', name: 'Asha Patel', department: 'Product', present: 18, absent: 2, leaves: 2, percentage: 81.8 },
-  { employeeId: 'WZ-1002', name: 'Rohan Mehta', department: 'Sales', present: 20, absent: 0, leaves: 2, percentage: 90.9 },
-  { employeeId: 'WZ-1003', name: 'Priya Singh', department: 'Marketing', present: 19, absent: 1, leaves: 2, percentage: 86.4 },
-];
+type AttendanceRow = { employeeId: string; name: string; department: string; present: number; absent: number; leaves: number; percentage: number };
 
 export default function Attendance() {
   const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [data, setData] = useState<AttendanceRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const res = await attendanceApi.summary({ month });
+      const rows: AttendanceRow[] = res.map((r) => ({
+        employeeId: r.employeeCode,
+        name: r.name,
+        department: 'N/A',
+        present: r.present,
+        absent: r.absent,
+        leaves: r.leaves,
+        percentage: r.percentage,
+      }));
+      setData(rows);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load attendance');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
 
   const handleExport = () => {
     toast.success('Attendance report exported as CSV');
   };
 
-  const filteredData = selectedDepartment === 'all' 
-    ? mockAttendanceData 
-    : mockAttendanceData.filter(emp => emp.department === selectedDepartment);
+  const filteredData = selectedDepartment === 'all' ? data : data.filter(emp => emp.department === selectedDepartment);
 
   return (
     <DashboardLayout>
@@ -85,7 +107,11 @@ export default function Attendance() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredData.map((record) => (
+                {loading ? (
+                  <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                ) : filteredData.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center">No attendance data found</TableCell></TableRow>
+                ) : filteredData.map((record) => (
                   <TableRow key={record.employeeId}>
                     <TableCell className="font-medium">{record.employeeId}</TableCell>
                     <TableCell>{record.name}</TableCell>

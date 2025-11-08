@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, UserPlus, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { usersApi } from '@/lib/api';
 
 interface User {
   id: string;
@@ -21,25 +22,52 @@ interface User {
   status: string;
 }
 
-const mockUsers: User[] = [
-  { id: '1', name: 'Asha Patel', email: 'asha@workzen.com', role: 'Employee', department: 'Engineering', status: 'Active' },
-  { id: '2', name: 'Rajesh Kumar', email: 'rajesh@workzen.com', role: 'HR', department: 'Human Resources', status: 'Active' },
-  { id: '3', name: 'Priya Sharma', email: 'priya@workzen.com', role: 'Payroll', department: 'Finance', status: 'Active' },
-  { id: '4', name: 'Amit Singh', email: 'amit@workzen.com', role: 'Employee', department: 'Sales', status: 'Active' },
-  { id: '5', name: 'Neha Gupta', email: 'neha@workzen.com', role: 'Employee', department: 'Engineering', status: 'Active' },
-  { id: '6', name: 'Vikram Desai', email: 'vikram@workzen.com', role: 'Employee', department: 'Marketing', status: 'Inactive' },
-  { id: '7', name: 'Sneha Reddy', email: 'sneha@workzen.com', role: 'HR', department: 'Human Resources', status: 'Active' },
-  { id: '8', name: 'Admin User', email: 'admin@workzen.com', role: 'Admin', department: 'Management', status: 'Active' },
-];
+type ApiUser = { id: string; name: string; email: string; role: { name: string }; isActive: boolean };
+const toViewUser = (u: ApiUser): User => ({
+  id: u.id,
+  name: u.name,
+  email: u.email,
+  role: u.role.name.charAt(0).toUpperCase() + u.role.name.slice(1),
+  department: '-',
+  status: u.isActive ? 'Active' : 'Inactive',
+});
 
 export default function Users() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<User[]>([]);
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  
+  // Form state
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: 'Welcome@123',
+    role: 'employee',
+    department: '',
+  });
 
-  const filteredUsers = mockUsers.filter((user) => {
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await usersApi.list({ limit: 50, page: 1 });
+        if (!ignore) setUsers(res.items.map(toViewUser));
+      } catch (e) {
+        toast({ title: 'Failed to load users', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [toast]);
+
+  const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -48,12 +76,35 @@ export default function Users() {
     return matchesSearch && matchesRole;
   });
 
-  const handleAddUser = () => {
-    toast({
-      title: 'User created',
-      description: 'New user has been added successfully.',
-    });
-    setIsAddDialogOpen(false);
+  const handleAddUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.role) {
+      toast({ title: 'Validation Error', description: 'Name, email, and role are required', variant: 'destructive' });
+      return;
+    }
+    
+    setSubmitting(true);
+    try {
+      await usersApi.create({
+        name: newUser.name,
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role,
+      });
+      
+      toast({ title: 'Success', description: `User ${newUser.name} created successfully!` });
+      
+      // Reload users list
+      const res = await usersApi.list({ limit: 50, page: 1 });
+      setUsers(res.items.map(toViewUser));
+      
+      // Reset form and close dialog
+      setNewUser({ name: '', email: '', password: 'Welcome@123', role: 'employee', department: '' });
+      setIsAddDialogOpen(false);
+    } catch (e) {
+      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to create user', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -77,16 +128,37 @@ export default function Users() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" placeholder="Enter full name" />
+                  <Label htmlFor="name">Full Name *</Label>
+                  <Input 
+                    id="name" 
+                    placeholder="Enter full name" 
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="user@workzen.com" />
+                  <Label htmlFor="email">Email *</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="user@workzen.com" 
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select>
+                  <Label htmlFor="password">Default Password</Label>
+                  <Input 
+                    id="password" 
+                    type="text" 
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">User can change this after first login</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role *</Label>
+                  <Select value={newUser.role} onValueChange={(val) => setNewUser({ ...newUser, role: val })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
@@ -99,38 +171,29 @@ export default function Users() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Select>
+                  <Label htmlFor="department">Department (Optional)</Label>
+                  <Select value={newUser.department} onValueChange={(val) => setNewUser({ ...newUser, department: val })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="engineering">Engineering</SelectItem>
-                      <SelectItem value="hr">Human Resources</SelectItem>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="Human Resources">Human Resources</SelectItem>
+                      <SelectItem value="Sales">Sales</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select defaultValue="active">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs text-muted-foreground">Can be updated in profile later</p>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddUser}>Create User</Button>
+                <Button onClick={handleAddUser} disabled={submitting}>
+                  {submitting ? 'Creating...' : 'Create User'}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -203,7 +266,7 @@ export default function Users() {
 
             <div className="flex items-center justify-between mt-4">
               <p className="text-sm text-muted-foreground">
-                Showing {filteredUsers.length} of {mockUsers.length} users
+                Showing {filteredUsers.length} of {users.length} users
               </p>
             </div>
           </CardContent>

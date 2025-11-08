@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LeaveForm } from '@/components/employee/LeaveForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,55 +14,64 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { leavesApi, profileApi } from '@/lib/api';
 import { X } from 'lucide-react';
 
-const mockLeaves = [
-  {
-    id: '1',
-    type: 'Casual',
-    fromDate: '2025-11-04',
-    toDate: '2025-11-05',
-    days: 2,
-    status: 'approved',
-    approver: 'Rahul Sharma',
-    appliedDate: '2025-10-28',
-  },
-  {
-    id: '2',
-    type: 'Sick',
-    fromDate: '2025-10-20',
-    toDate: '2025-10-20',
-    days: 1,
-    status: 'approved',
-    approver: 'Rahul Sharma',
-    appliedDate: '2025-10-19',
-  },
-  {
-    id: '3',
-    type: 'Privilege',
-    fromDate: '2025-11-15',
-    toDate: '2025-11-17',
-    days: 3,
-    status: 'pending',
-    approver: '-',
-    appliedDate: '2025-11-01',
-  },
-];
+type LeaveRow = { id: string; type: string; fromDate: string; toDate: string; days: number; status: string; approver: string; appliedDate: string };
 
 export default function Leaves() {
-  const [leaveBalance] = useState({ casual: 6, sick: 4, privilege: 10 });
-  const [leaves] = useState(mockLeaves);
+  const [leaveBalance, setLeaveBalance] = useState<{ casual: number; sick: number; privilege: number }>({ casual: 0, sick: 0, privilege: 0 });
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (data: any) => {
-    console.log('Leave submitted:', data);
-    toast.success('Leave request submitted successfully!');
+  const load = async () => {
+    setLoading(true);
+    try {
+      // load my profile for balances
+      const me: any = await profileApi.getMe();
+      const lb = (me?.metadata?.leaveBalance) ?? {};
+      setLeaveBalance({ casual: lb.CASUAL ?? 0, sick: lb.SICK ?? 0, privilege: lb.EARNED ?? 0 });
+      // load my leaves
+      const res = await leavesApi.list({ page: 1, limit: 100 });
+      const rows: LeaveRow[] = res.items.map((r) => ({
+        id: r.id,
+        type: r.type,
+        fromDate: r.startDate.slice(0,10),
+        toDate: r.endDate.slice(0,10),
+        days: (r.metadata?.days as number) ?? 0,
+        status: r.status.toLowerCase(),
+        approver: r.approvedById ? r.approvedById : '-',
+        appliedDate: r.createdAt.slice(0,10),
+      }));
+      setLeaves(rows);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load leaves');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSubmit = async (data: any) => {
+    try {
+      const mapType = (t: string) => t === 'casual' ? 'CASUAL' : t === 'sick' ? 'SICK' : 'EARNED';
+      const fmt = (d: Date) => d.toISOString().slice(0,10);
+      await leavesApi.apply({ type: mapType(data.type) as any, startDate: fmt(data.fromDate), endDate: fmt(data.toDate), reason: data.reason });
+      toast.success('Leave request submitted successfully!');
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to submit leave');
+    }
   };
 
   const handleSaveDraft = (data: any) => {
+    // No drafts API; keep as noop for now
     console.log('Leave draft saved:', data);
   };
 
   const handleCancel = (id: string) => {
+    // Cancel not implemented in backend; noop
     console.log('Cancel leave:', id);
     toast.success('Leave request cancelled');
   };

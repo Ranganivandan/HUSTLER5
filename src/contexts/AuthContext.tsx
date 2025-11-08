@@ -22,39 +22,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo
-const mockUsers: Record<string, User> = {
-  'employee@workzen.com': {
-    id: 'emp_1001',
-    name: 'Asha Patel',
-    email: 'employee@workzen.com',
-    role: 'employee',
-    employee_code: 'WZ-1001',
-    department: 'Product',
-  },
-  'hr@workzen.com': {
-    id: 'hr_2001',
-    name: 'Rahul Sharma',
-    email: 'hr@workzen.com',
-    role: 'hr',
-    employee_code: 'WZ-2001',
-    department: 'Human Resources',
-  },
-  'payroll@workzen.com': {
-    id: 'pay_3001',
-    name: 'Priya Kumar',
-    email: 'payroll@workzen.com',
-    role: 'payroll',
-    employee_code: 'WZ-3001',
-    department: 'Finance',
-  },
-  'admin@workzen.com': {
-    id: 'adm_4001',
-    name: 'Admin User',
-    email: 'admin@workzen.com',
-    role: 'admin',
-  },
-};
+// No mock users: enforce backend-only auth
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -108,31 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           break;
       }
     } catch (error) {
-      console.error('Backend login failed, trying mock:', error);
-      // Fallback to mock authentication for demo
-      const user = mockUsers[email.toLowerCase()];
-      if (user && password === 'password') {
-        setUser(user);
-        localStorage.setItem('workzen_user', JSON.stringify(user));
-        
-        // Redirect based on role
-        switch (user.role) {
-          case 'employee':
-            navigate('/employee/dashboard');
-            break;
-          case 'hr':
-            navigate('/hr/dashboard');
-            break;
-          case 'payroll':
-            navigate('/payroll/dashboard');
-            break;
-          case 'admin':
-            navigate('/admin/dashboard');
-            break;
-        }
-      } else {
-        throw new Error('Invalid credentials');
-      }
+      throw error;
     }
   };
 

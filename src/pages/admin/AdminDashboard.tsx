@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { AnalyticsCard } from '@/components/admin/AnalyticsCard';
 import { LineChartCard } from '@/components/admin/LineChartCard';
@@ -7,8 +8,35 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Building2, DollarSign, TrendingUp, Clock, Calendar, Plus, FileText, UserPlus } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Link } from 'react-router-dom';
+import { analyticsApi, usersApi, adminApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function AdminDashboard() {
+  const [loading, setLoading] = useState(false);
+  const [kpis, setKpis] = useState({ totalEmployees: 0, presentToday: 0, onLeaveToday: 0, pendingLeaveRequests: 0, avgAttendance: 0 });
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [recentAuditLogs, setRecentAuditLogs] = useState<any[]>([]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [analyticsData, usersData, auditData] = await Promise.all([
+        analyticsApi.overview().catch(() => ({ totalEmployees: 0, presentToday: 0, onLeaveToday: 0, pendingLeaveRequests: 0, avgAttendance: 0 })),
+        usersApi.list({ page: 1, limit: 1 }).catch(() => ({ items: [], total: 0 })),
+        adminApi.auditLogs({ page: 1, limit: 5 }).catch(() => ({ items: [], total: 0 })),
+      ]);
+      setKpis(analyticsData);
+      setTotalUsers(usersData.total);
+      setRecentAuditLogs(auditData.items);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
   const sparklineData = [
     { value: 140 },
     { value: 142 },
@@ -58,12 +86,14 @@ export default function AdminDashboard() {
     { name: 'Neha Gupta', score: 8.9, department: 'Engineering' },
   ];
 
-  const recentActivities = [
-    { time: '2 hours ago', user: 'HR Officer', action: 'Approved leave request for Asha Patel' },
-    { time: '4 hours ago', user: 'Payroll Officer', action: 'Generated payrun for October 2025' },
-    { time: '6 hours ago', user: 'HR Officer', action: 'Added new employee: Rajesh Kumar' },
-    { time: '1 day ago', user: 'Admin', action: 'Updated company PF settings' },
-  ];
+  const recentActivities = recentAuditLogs.map((log) => {
+    const timeAgo = new Date(log.createdAt).toLocaleString();
+    return {
+      time: timeAgo,
+      user: log.user?.name || 'System',
+      action: `${log.action} ${log.entity || ''} ${log.entityId || ''}`.trim(),
+    };
+  });
 
   return (
     <DashboardLayout>
@@ -86,36 +116,33 @@ export default function AdminDashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <AnalyticsCard
             title="Total Employees"
-            value={152}
+            value={loading ? '...' : kpis.totalEmployees}
             icon={Users}
-            trend={{ value: 8, isPositive: true }}
             sparklineData={sparklineData}
           />
           <AnalyticsCard
-            title="Active Departments"
-            value={8}
+            title="Total Users"
+            value={loading ? '...' : totalUsers}
             icon={Building2}
           />
           <AnalyticsCard
-            title="Monthly Payroll"
-            value="₹86.5L"
-            icon={DollarSign}
-            trend={{ value: 4.2, isPositive: true }}
+            title="Present Today"
+            value={loading ? '...' : kpis.presentToday}
+            icon={UserPlus}
           />
           <AnalyticsCard
-            title="Avg Performance Score"
-            value="8.7/10"
-            icon={TrendingUp}
-            trend={{ value: 2.3, isPositive: true }}
+            title="On Leave Today"
+            value={loading ? '...' : kpis.onLeaveToday}
+            icon={Calendar}
           />
           <AnalyticsCard
             title="Avg Attendance"
-            value="92%"
+            value={loading ? '...' : `${kpis.avgAttendance}%`}
             icon={Clock}
           />
           <AnalyticsCard
-            title="Active Leave Requests"
-            value={12}
+            title="Pending Leave Requests"
+            value={loading ? '...' : kpis.pendingLeaveRequests}
             icon={Calendar}
           />
         </div>
@@ -221,7 +248,11 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentActivities.map((activity, index) => (
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : recentActivities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No recent activity</p>
+                ) : recentActivities.map((activity, index) => (
                   <div key={index} className="flex gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                       <FileText className="h-4 w-4 text-muted-foreground" />

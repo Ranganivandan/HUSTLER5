@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, Download } from 'lucide-react';
+import { adminApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface AuditLog {
   id: string;
@@ -18,69 +20,6 @@ interface AuditLog {
   type: 'created' | 'updated' | 'deleted' | 'system';
 }
 
-const mockLogs: AuditLog[] = [
-  {
-    id: '1',
-    timestamp: '2025-11-08 14:30:22',
-    user: 'Admin User',
-    role: 'Admin',
-    action: 'Updated',
-    target: 'Company Settings',
-    details: 'Changed PF percentage from 10% to 12%',
-    type: 'updated',
-  },
-  {
-    id: '2',
-    timestamp: '2025-11-08 13:15:10',
-    user: 'HR Officer',
-    role: 'HR',
-    action: 'Created',
-    target: 'Employee Record',
-    details: 'Added new employee: Asha Patel (WZ-1001)',
-    type: 'created',
-  },
-  {
-    id: '3',
-    timestamp: '2025-11-08 12:45:33',
-    user: 'Payroll Officer',
-    role: 'Payroll',
-    action: 'Created',
-    target: 'Payrun',
-    details: 'Generated payrun for October 2025',
-    type: 'created',
-  },
-  {
-    id: '4',
-    timestamp: '2025-11-08 11:20:15',
-    user: 'System',
-    role: 'System',
-    action: 'System Event',
-    target: 'Attendance',
-    details: 'Auto-marked absent for 3 employees',
-    type: 'system',
-  },
-  {
-    id: '5',
-    timestamp: '2025-11-08 10:05:45',
-    user: 'HR Officer',
-    role: 'HR',
-    action: 'Updated',
-    target: 'Attendance Record',
-    details: 'Corrected attendance for Rajesh Kumar on 2025-11-05',
-    type: 'updated',
-  },
-  {
-    id: '6',
-    timestamp: '2025-11-07 16:30:22',
-    user: 'Admin User',
-    role: 'Admin',
-    action: 'Deleted',
-    target: 'User Account',
-    details: 'Removed inactive user: test@workzen.com',
-    type: 'deleted',
-  },
-];
-
 const actionColors = {
   created: 'bg-green-500/10 text-green-700 border-green-200',
   updated: 'bg-yellow-500/10 text-yellow-700 border-yellow-200',
@@ -91,8 +30,34 @@ const actionColors = {
 export function AuditTable() {
   const [search, setSearch] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const filteredLogs = mockLogs.filter(
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.auditLogs({ page: 1, limit: 100 });
+      const rows: AuditLog[] = res.items.map((r) => ({
+        id: r.id,
+        timestamp: new Date(r.createdAt).toLocaleString(),
+        user: r.user?.name || 'System',
+        role: r.user?.role?.name || 'System',
+        action: r.action,
+        target: r.entity || 'Unknown',
+        details: JSON.stringify(r.meta || {}),
+        type: r.action.toLowerCase().includes('create') ? 'created' : r.action.toLowerCase().includes('update') ? 'updated' : r.action.toLowerCase().includes('delete') ? 'deleted' : 'system',
+      }));
+      setLogs(rows);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load audit logs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filteredLogs = logs.filter(
     (log) =>
       log.user.toLowerCase().includes(search.toLowerCase()) ||
       log.action.toLowerCase().includes(search.toLowerCase()) ||
@@ -137,7 +102,11 @@ export function AuditTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.map((log) => (
+                {loading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                ) : filteredLogs.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="text-center">No audit logs found</TableCell></TableRow>
+                ) : filteredLogs.map((log) => (
                   <TableRow
                     key={log.id}
                     className="cursor-pointer hover:bg-muted/50"

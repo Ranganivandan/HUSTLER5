@@ -50,7 +50,7 @@ async function main() {
 
     const passwordHash = await bcrypt.hash(demoUser.password, 10);
     
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { email: demoUser.email },
       update: {},
       create: {
@@ -60,6 +60,24 @@ async function main() {
         roleId: role.id,
       },
     });
+
+    // Ensure profile exists with default leave balances for demo
+    const existingProfile = await prisma.employeeProfile.findUnique({ where: { userId: user.id } });
+    if (!existingProfile) {
+      await prisma.employeeProfile.create({
+        data: {
+          userId: user.id,
+          employeeCode: `WZ-${user.id.slice(0, 8)}`,
+          metadata: { leaveBalance: { SICK: 5, CASUAL: 5, EARNED: 10, UNPAID: 9999 } },
+        },
+      });
+    } else {
+      const meta: any = existingProfile.metadata ?? {};
+      if (!meta.leaveBalance) {
+        meta.leaveBalance = { SICK: 5, CASUAL: 5, EARNED: 10, UNPAID: 9999 };
+        await prisma.employeeProfile.update({ where: { userId: user.id }, data: { metadata: meta } });
+      }
+    }
   }
 
   console.log('Seed complete: roles and demo users created (password: "password" for all)');
