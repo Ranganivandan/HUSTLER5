@@ -24,7 +24,7 @@ export const ProfileService = {
   },
 
   async list(requestorRole: string, page: number, limit: number, search?: string) {
-    if (!['admin', 'hr'].includes(requestorRole)) {
+    if (!['admin', 'hr', 'payroll'].includes(requestorRole)) {
       const err: any = new Error('Forbidden');
       err.status = 403;
       throw err;
