@@ -10,6 +10,8 @@ import { analyticsRouter } from './analytics.routes';
 import { adminRouter } from './admin.routes';
 import settingsRouter from './settings.routes';
 import reportsRouter from './reports.routes';
+import publicRouter from './public.routes';
+import { officeLocationRouter } from './office-location.routes';
 
 export const router = Router();
 
@@ -17,6 +19,7 @@ export const router = Router();
 const v1 = Router();
 
 v1.get('/health', healthHandler);
+v1.use('/public', publicRouter);
 v1.use('/auth', authRouter);
 v1.use('/users', usersRouter);
 v1.use('/profile', profileRouter);
@@ -27,5 +30,6 @@ v1.use('/analytics', analyticsRouter);
 v1.use('/admin', adminRouter);
 v1.use('/settings', settingsRouter);
 v1.use('/reports', reportsRouter);
+v1.use('/office-location', officeLocationRouter);
 
 router.use('/v1', v1);

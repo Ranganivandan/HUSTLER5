@@ -138,15 +138,17 @@ model FaceEmbedding {
 }
 
 model Attendance {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date      DateTime
-  status    AttendanceStatus @default(PRESENT)
-  checkIn   DateTime?
-  checkOut  DateTime?
-  metadata  Json?
-  createdAt DateTime         @default(now())
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date             DateTime
+  status           AttendanceStatus @default(PRESENT)
+  checkIn          DateTime?
+  checkOut         DateTime?
+  checkInLocation  Json?            // { lat, lng, address }
+  checkOutLocation Json?            // { lat, lng, address }
+  metadata         Json?
+  createdAt        DateTime         @default(now())
 
   @@unique([userId, date])
   @@index([userId, date])

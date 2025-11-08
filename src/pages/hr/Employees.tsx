@@ -40,7 +40,6 @@ export default function Employees() {
   const [newEmployee, setNewEmployee] = useState({
     name: '',
     email: '',
-    password: 'Welcome@123',
     role: 'employee',
     department: '',
   });
@@ -84,20 +83,29 @@ export default function Employees() {
     
     setSubmitting(true);
     try {
-      await usersApi.create({
+      const response = await usersApi.create({
         name: newEmployee.name,
         email: newEmployee.email,
-        password: newEmployee.password,
         role: newEmployee.role as any,
+        department: newEmployee.department || undefined,
       });
       
-      toast.success(`Employee ${newEmployee.name} created successfully!`);
+      // Show success message with generated password info
+      if (response.generatedPassword) {
+        toast.success(
+          `Employee created! Password: ${response.generatedPassword}`,
+          { duration: 10000 }
+        );
+        toast.info('Credentials have been sent to their email', { duration: 5000 });
+      } else {
+        toast.success(`Employee ${newEmployee.name} created successfully!`);
+      }
       
       // Reload employees list
       await load();
       
       // Reset form and close dialog
-      setNewEmployee({ name: '', email: '', password: 'Welcome@123', role: 'employee', department: '' });
+      setNewEmployee({ name: '', email: '', role: 'employee', department: '' });
       setAddModalOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create employee');
@@ -212,15 +220,11 @@ export default function Employees() {
                   onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Default Password</Label>
-                <Input 
-                  id="password" 
-                  type="text" 
-                  value={newEmployee.password}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">User can change this after first login</p>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <p className="text-sm text-blue-900 font-medium">🔐 Auto-Generated Password</p>
+                <p className="text-xs text-blue-700 mt-1">
+                  A secure password will be automatically generated and sent to the employee's email.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>

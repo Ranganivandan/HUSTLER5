@@ -3,12 +3,18 @@ import { prisma } from '../services/prisma.service';
 export const AttendanceRepository = {
   findByUserAndDate: (userId: string, date: Date) =>
     prisma.attendance.findUnique({ where: { userId_date: { userId, date } } }),
-  createCheckin: (data: { userId: string; date: Date; checkIn: Date; metadata?: unknown }) =>
-    prisma.attendance.create({ data: { userId: data.userId, date: data.date, checkIn: data.checkIn, metadata: data.metadata as any } }),
-  setCheckout: (userId: string, date: Date, checkOut: Date) =>
-    prisma.attendance.update({ where: { userId_date: { userId, date } }, data: { checkOut } }),
+  createCheckin: (data: { userId: string; date: Date; checkIn: Date; checkInLocation?: unknown; metadata?: unknown }) =>
+    prisma.attendance.create({ data: { userId: data.userId, date: data.date, checkIn: data.checkIn, checkInLocation: data.checkInLocation as any, metadata: data.metadata as any } }),
+  setCheckout: (userId: string, date: Date, checkOut: Date, checkOutLocation?: unknown) =>
+    prisma.attendance.update({ where: { userId_date: { userId, date } }, data: { checkOut, checkOutLocation: checkOutLocation as any } }),
   listByMonth: (userId: string, from: Date, to: Date) =>
     prisma.attendance.findMany({ where: { userId, date: { gte: from, lt: to } }, orderBy: { date: 'asc' } }),
+  listAllByMonth: (from: Date, to: Date) =>
+    prisma.attendance.findMany({ 
+      where: { date: { gte: from, lt: to } }, 
+      include: { user: { include: { profile: true } } },
+      orderBy: { date: 'desc' } 
+    }),
   statsByMonth: async (userId: string, from: Date, to: Date) => {
     const items = await prisma.attendance.findMany({ where: { userId, date: { gte: from, lt: to } } });
     const present = items.length;

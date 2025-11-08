@@ -3,6 +3,8 @@ import { prisma } from '../services/prisma.service';
 import { AuditService } from './audit.service';
 import { ProfileService } from './profile.service';
 import { getBoss } from '../jobs/boss';
+import { generateMemorablePassword } from '../utils/password-generator';
+import { sendEmployeeCredentials } from './mailer.service';
 
 export async function listUsers(params: { page?: number; limit?: number; role?: string; active?: boolean }) {
   const page = params.page && params.page > 0 ? params.page : 1;
@@ -31,23 +33,45 @@ export async function getUser(id: string) {
   return prisma.user.findUnique({ where: { id }, include: { role: true, profile: true } });
 }
 
-export async function createUser(data: { email: string; name: string; password: string; role?: 'employee'|'hr'|'payroll'|'admin'; actorId: string; ip?: string; userAgent?: string; sendInvite?: boolean; }) {
+export async function createUser(data: { 
+  email: string; 
+  name: string; 
+  password?: string; // Optional - will auto-generate if not provided
+  role?: 'employee'|'hr'|'payroll'|'admin'; 
+  department?: string;
+  actorId: string; 
+  ip?: string; 
+  userAgent?: string; 
+  sendCredentials?: boolean; // Send credentials email
+}) {
   const exists = await prisma.user.findUnique({ where: { email: data.email } });
   if (exists) throw Object.assign(new Error('Email already registered'), { status: 409 });
 
   const role = await prisma.role.findUnique({ where: { name: data.role ?? 'employee' } });
   if (!role) throw new Error('Role not found');
 
-  const passwordHash = await bcrypt.hash(data.password, 10);
-  const user = await prisma.user.create({ data: { email: data.email, name: data.name, passwordHash, roleId: role.id, isActive: true } });
+  // Auto-generate password if not provided
+  const plainPassword = data.password || generateMemorablePassword();
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
+  
+  const user = await prisma.user.create({ 
+    data: { 
+      email: data.email, 
+      name: data.name, 
+      passwordHash, 
+      roleId: role.id, 
+      isActive: true 
+    } 
+  });
 
   // Auto-create employee profile with unique employee code
   try {
-    const employeeCode = await ProfileService.generateEmployeeCode();
+    const employeeCode = await ProfileService.generateEmployeeCode(user.name);
     await prisma.employeeProfile.create({ 
       data: { 
         userId: user.id, 
         employeeCode,
+        department: data.department || null,
         metadata: { leaveBalance: { SICK: 10, CASUAL: 12, EARNED: 15, UNPAID: 0 } } as any
       } 
     });
@@ -56,16 +80,36 @@ export async function createUser(data: { email: string; name: string; password: 
     console.error('Failed to create employee profile:', e);
   }
 
-  await AuditService.create({ userId: data.actorId, action: 'USER_CREATE', entity: 'User', entityId: user.id, ip: data.ip, userAgent: data.userAgent, meta: { email: user.email, role: data.role ?? 'employee' } });
+  await AuditService.create({ 
+    userId: data.actorId, 
+    action: 'USER_CREATE', 
+    entity: 'User', 
+    entityId: user.id, 
+    ip: data.ip, 
+    userAgent: data.userAgent, 
+    meta: { email: user.email, role: data.role ?? 'employee', department: data.department } 
+  });
 
-  if (data.sendInvite) {
-    // enqueue invite email via boss (stub)
+  // Send credentials email if requested (default: true for auto-generated passwords)
+  const shouldSendEmail = data.sendCredentials !== false && !data.password;
+  if (shouldSendEmail) {
     try {
-      await getBoss().send('email:send', { to: user.email, template: 'invite', data: { name: user.name } });
-    } catch {}
+      await sendEmployeeCredentials({
+        to: user.email,
+        name: user.name,
+        email: user.email,
+        password: plainPassword,
+        role: data.role ?? 'employee',
+        department: data.department,
+      });
+      console.log(`✅ Credentials email sent to ${user.email}`);
+    } catch (error) {
+      console.error('Failed to send credentials email:', error);
+      // Don't fail user creation if email fails
+    }
   }
 
-  return user;
+  return { user, generatedPassword: !data.password ? plainPassword : undefined };
 }
 
 export async function updateUser(id: string, data: { role?: 'employee'|'hr'|'payroll'|'admin'; isActive?: boolean; actorId: string; ip?: string; userAgent?: string; }) {

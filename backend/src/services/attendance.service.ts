@@ -1,6 +1,8 @@
 import { AttendanceRepository } from '../repositories/attendance.repository';
 import { MlService } from './ml.service';
 import { AnalyticsService } from './analytics.service';
+import { OfficeLocationService } from './office-location.service';
+import { validateAttendanceLocation } from './geolocation.service';
 
 function startOfDay(date: Date) {
   const d = new Date(date);
@@ -22,12 +24,21 @@ function startEndOfMonth(month?: string) {
 }
 
 export const AttendanceService = {
-  async checkin(userId: string, method: 'manual'|'face'|'mobile', publicId?: string) {
+  async checkin(userId: string, method: 'manual'|'face'|'mobile', publicId?: string, location?: { lat: number; lng: number; address?: string }) {
     const today = startOfDay(new Date());
     const existing = await AttendanceRepository.findByUserAndDate(userId, today);
     if (existing?.checkIn) {
       // Idempotent: return existing record instead of throwing
       return { record: existing, faceVerified: undefined as boolean | undefined, score: undefined as number | undefined, reason: undefined as string | undefined };
+    }
+
+    // Validate location if office location is configured
+    const officeLocation = await OfficeLocationService.get();
+    const locationValidation = validateAttendanceLocation(location, officeLocation);
+    if (!locationValidation.valid) {
+      const err: any = new Error(locationValidation.error || 'Location validation failed');
+      err.status = 403;
+      throw err;
     }
 
     let faceVerified: boolean | undefined = undefined;
@@ -50,29 +61,40 @@ export const AttendanceService = {
       }
     }
 
-    if (!existing) {
-      const rec = await AttendanceRepository.createCheckin({ userId, date: today, checkIn: new Date(), metadata });
-      try { AnalyticsService.invalidateAttendanceCache(); } catch {}
-      return { record: rec, faceVerified, score, reason };
-    } else {
-      // createCheckin path should have covered; but if a row exists without checkIn, set checkIn
-      // For safety, treat as already checked in
-      const err: any = new Error('Already checked in'); err.status = 400; throw err;
-    }
+    const checkIn = new Date();
+    const record = await AttendanceRepository.createCheckin({ 
+      userId, 
+      date: today, 
+      checkIn, 
+      checkInLocation: location,
+      metadata 
+    });
+    return { record, faceVerified, score, reason, distance: locationValidation.distance };
   },
 
-  async checkout(userId: string) {
+  async checkout(userId: string, location?: { lat: number; lng: number; address?: string }) {
     const today = startOfDay(new Date());
     const existing = await AttendanceRepository.findByUserAndDate(userId, today);
-    if (!existing?.checkIn) {
-      const err: any = new Error('No check-in found'); err.status = 400; throw err;
+    if (!existing) {
+      const err: any = new Error('No check-in found for today'); err.status = 400; throw err;
     }
     if (existing.checkOut) {
-      const err: any = new Error('Already checked out'); err.status = 400; throw err;
+      // Idempotent: return existing record instead of throwing error
+      return existing;
     }
-    const rec = await AttendanceRepository.setCheckout(userId, today, new Date());
-    try { AnalyticsService.invalidateAttendanceCache(); } catch {}
-    return rec;
+
+    // Validate location if office location is configured
+    const officeLocation = await OfficeLocationService.get();
+    const locationValidation = validateAttendanceLocation(location, officeLocation);
+    if (!locationValidation.valid) {
+      const err: any = new Error(locationValidation.error || 'Location validation failed');
+      err.status = 403;
+      throw err;
+    }
+
+    const checkOut = new Date();
+    const record = await AttendanceRepository.setCheckout(userId, today, checkOut, location);
+    return record;
   },
 
   async list(requestor: { id: string; role: string }, query: { userId?: string; month?: string }) {
@@ -100,5 +122,21 @@ export const AttendanceService = {
     }
     const { from, to } = startEndOfMonth(query.month);
     return AttendanceRepository.summaryByMonth(from, to);
+  },
+
+  async listAll(requestor: { role: string }, query: { month?: string; userId?: string }) {
+    // Only admin/hr can view all attendance
+    if (!['admin','hr'].includes(requestor.role)) {
+      const err: any = new Error('Forbidden'); err.status = 403; throw err;
+    }
+    const { from, to } = startEndOfMonth(query.month);
+    
+    // If userId is specified, filter by that user
+    if (query.userId) {
+      return AttendanceRepository.listByMonth(query.userId, from, to);
+    }
+    
+    // Otherwise, return all attendance records for the month
+    return AttendanceRepository.listAllByMonth(from, to);
   },
 };
