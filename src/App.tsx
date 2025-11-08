@@ -1,34 +1,42 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { queryClient } from "./lib/react-query";
+import { PageLoader } from "./components/loaders/SkeletonLoaders";
+
+// Eager load auth pages (needed immediately)
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
-import EmployeeProfile from "./pages/employee/EmployeeProfile";
-import EmployeeAttendance from "./pages/employee/Attendance";
-import EmployeeLeaves from "./pages/employee/Leaves";
-import EmployeePayslips from "./pages/employee/Payslips";
-import HRDashboard from "./pages/hr/HRDashboard";
-import HREmployees from "./pages/hr/Employees";
-import HRAttendance from "./pages/hr/Attendance";
-import HRLeaves from "./pages/hr/Leaves";
-import PayrollDashboard from "./pages/payroll/PayrollDashboard";
-import Payruns from "./pages/payroll/Payruns";
-import Configuration from "./pages/payroll/Configuration";
-import Designer from "./pages/payroll/Designer";
-import Reports from "./pages/payroll/Reports";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminUsers from "./pages/admin/Users";
-import AdminSettings from "./pages/admin/Settings";
-import AdminAudit from "./pages/admin/Audit";
-import AdminReports from "./pages/admin/Reports";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Lazy load all dashboard pages
+const EmployeeDashboard = lazy(() => import("./pages/employee/EmployeeDashboard"));
+const EmployeeProfile = lazy(() => import("./pages/employee/EmployeeProfile"));
+const EmployeeAttendance = lazy(() => import("./pages/employee/Attendance"));
+const EmployeeLeaves = lazy(() => import("./pages/employee/Leaves"));
+const EmployeePayslips = lazy(() => import("./pages/employee/Payslips"));
+
+const HRDashboard = lazy(() => import("./pages/hr/HRDashboard"));
+const HREmployees = lazy(() => import("./pages/hr/Employees"));
+const HRAttendance = lazy(() => import("./pages/hr/Attendance"));
+const HRLeaves = lazy(() => import("./pages/hr/Leaves"));
+
+const PayrollDashboard = lazy(() => import("./pages/payroll/PayrollDashboard"));
+const Payruns = lazy(() => import("./pages/payroll/Payruns"));
+const Configuration = lazy(() => import("./pages/payroll/Configuration"));
+const Designer = lazy(() => import("./pages/payroll/Designer"));
+const Reports = lazy(() => import("./pages/payroll/Reports"));
+
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminAudit = lazy(() => import("./pages/admin/Audit"));
+const AdminReports = lazy(() => import("./pages/admin/Reports"));
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -37,7 +45,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
@@ -202,7 +211,8 @@ const App = () => (
             />
             
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
