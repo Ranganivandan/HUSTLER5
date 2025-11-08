@@ -1,30 +1,103 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { AttendanceCalendar } from '@/components/employee/AttendanceCalendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, TrendingUp, Calendar as CalendarIcon } from 'lucide-react';
+import { CalendarIcon, Clock, TrendingUp } from 'lucide-react';
+import { attendanceApi } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import { AttendanceCalendar } from '@/components/employee/AttendanceCalendar';
 
-// Mock data
-const mockAttendance = [
-  { date: '2025-11-01', status: 'present' as const, inTime: '09:15 AM', outTime: '06:30 PM', hours: 9.25 },
-  { date: '2025-11-02', status: 'present' as const, inTime: '09:00 AM', outTime: '06:15 PM', hours: 9.25 },
-  { date: '2025-11-03', status: 'present' as const, inTime: '09:30 AM', outTime: '06:45 PM', hours: 9.25 },
-  { date: '2025-11-04', status: 'leave' as const },
-  { date: '2025-11-05', status: 'leave' as const },
-  { date: '2025-11-06', status: 'present' as const, inTime: '09:10 AM', outTime: '06:20 PM', hours: 9.17 },
-  { date: '2025-11-07', status: 'present' as const, inTime: '09:05 AM', outTime: '06:25 PM', hours: 9.33 },
-  { date: '2025-11-08', status: 'holiday' as const },
-];
+type ViewAttendance = { date: string; status: 'present'|'absent'|'leave'|'holiday'; inTime?: string; outTime?: string; hours?: number };
 
 export default function Attendance() {
-  const [hasMarkedToday] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState<ViewAttendance[]>([]);
+  const [days, setDays] = useState(0);
+  const [hours, setHours] = useState(0);
+  const [hasMarkedToday, setHasMarkedToday] = useState(false);
+  const { toast } = useToast();
 
-  const totalWorkingDays = 22;
-  const presentDays = mockAttendance.filter(a => a.status === 'present').length;
-  const absentDays = 0; // No absent days in mock data
-  const leaveDays = mockAttendance.filter(a => a.status === 'leave').length;
-  const attendancePercentage = ((presentDays / totalWorkingDays) * 100).toFixed(1);
+  const monthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const [list, stat] = await Promise.all([
+          attendanceApi.list({ month: monthStr }),
+          attendanceApi.stats({ month: monthStr }),
+        ]);
+        if (ignore) return;
+        const mapped: ViewAttendance[] = list.map((r) => {
+          const inTime = r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+          const outTime = r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+          let hrs: number | undefined;
+          if (r.checkIn && r.checkOut) {
+            const ms = new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime();
+            hrs = Number((ms / (1000 * 60 * 60)).toFixed(2));
+          }
+          return { date: r.date.slice(0, 10), status: 'present', inTime, outTime, hours: hrs };
+        });
+        setRecords(mapped);
+        setDays(stat.days);
+        setHours(stat.hours);
+        const today = new Date().toISOString().slice(0, 10);
+        setHasMarkedToday(mapped.some((m) => m.date === today && !!m.inTime));
+      } catch (e) {
+        toast({ title: 'Failed to load attendance', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [monthStr, toast]);
+
+  const handleCheckin = async () => {
+    try {
+      await attendanceApi.checkin({ method: 'manual' });
+      toast({ title: 'Checked in' });
+      // Refresh
+      const list = await attendanceApi.list({ month: monthStr });
+      const mapped: ViewAttendance[] = list.map((r) => {
+        const inTime = r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+        const outTime = r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+        let hrs: number | undefined;
+        if (r.checkIn && r.checkOut) {
+          const ms = new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime();
+          hrs = Number((ms / (1000 * 60 * 60)).toFixed(2));
+        }
+        return { date: r.date.slice(0, 10), status: 'present', inTime, outTime, hours: hrs };
+      });
+      setRecords(mapped);
+      const today = new Date().toISOString().slice(0, 10);
+      setHasMarkedToday(mapped.some((m) => m.date === today && !!m.inTime));
+    } catch (e) {
+      toast({ title: 'Check-in failed', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
+    }
+  };
+
+  const handleCheckout = async () => {
+    try {
+      await attendanceApi.checkout();
+      toast({ title: 'Checked out' });
+      // Refresh
+      const list = await attendanceApi.list({ month: monthStr });
+      const mapped: ViewAttendance[] = list.map((r) => {
+        const inTime = r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+        const outTime = r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+        let hrs: number | undefined;
+        if (r.checkIn && r.checkOut) {
+          const ms = new Date(r.checkOut).getTime() - new Date(r.checkIn).getTime();
+          hrs = Number((ms / (1000 * 60 * 60)).toFixed(2));
+        }
+        return { date: r.date.slice(0, 10), status: 'present', inTime, outTime, hours: hrs };
+      });
+      setRecords(mapped);
+    } catch (e) {
+      toast({ title: 'Checkout failed', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -42,8 +115,8 @@ export default function Attendance() {
               <CalendarIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalWorkingDays}</div>
-              <p className="text-xs text-muted-foreground">This month</p>
+              <div className="text-2xl font-bold">{records.length}</div>
+              <p className="text-xs text-muted-foreground">Recorded days</p>
             </CardContent>
           </Card>
 
@@ -53,8 +126,8 @@ export default function Attendance() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">{presentDays}</div>
-              <p className="text-xs text-muted-foreground">Days attended</p>
+              <div className="text-2xl font-bold text-success">{days}</div>
+              <p className="text-xs text-muted-foreground">Days attended (from stats)</p>
             </CardContent>
           </Card>
 
@@ -64,8 +137,8 @@ export default function Attendance() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{absentDays + leaveDays}</div>
-              <p className="text-xs text-muted-foreground">{absentDays} absent, {leaveDays} leave</p>
+              <div className="text-2xl font-bold text-destructive">-</div>
+              <p className="text-xs text-muted-foreground">Coming soon</p>
             </CardContent>
           </Card>
 
@@ -75,8 +148,8 @@ export default function Attendance() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{attendancePercentage}%</div>
-              <p className="text-xs text-muted-foreground">Monthly average</p>
+              <div className="text-2xl font-bold text-primary">{records.length ? Math.min(100, Math.round((days / records.length) * 100)) : 0}%</div>
+              <p className="text-xs text-muted-foreground">Approximation</p>
             </CardContent>
           </Card>
         </div>
@@ -89,16 +162,30 @@ export default function Attendance() {
                 <h3 className="font-semibold">Mark Today's Attendance</h3>
                 <p className="text-sm text-muted-foreground">Don't forget to punch in!</p>
               </div>
-              <Button>
+              <Button onClick={handleCheckin} disabled={loading}>
                 <Clock className="mr-2 h-4 w-4" />
                 Punch In
               </Button>
             </CardContent>
           </Card>
         )}
+        {hasMarkedToday && (
+          <Card>
+            <CardContent className="flex items-center justify-between p-6">
+              <div>
+                <h3 className="font-semibold">You're checked in</h3>
+                <p className="text-sm text-muted-foreground">Remember to punch out at end of day</p>
+              </div>
+              <Button variant="outline" onClick={handleCheckout} disabled={loading}>
+                <Clock className="mr-2 h-4 w-4" />
+                Punch Out
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Calendar */}
-        <AttendanceCalendar attendance={mockAttendance} />
+        <AttendanceCalendar attendance={records} />
       </div>
     </DashboardLayout>
   );

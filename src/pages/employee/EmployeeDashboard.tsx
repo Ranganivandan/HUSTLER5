@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,23 +6,75 @@ import { Button } from '@/components/ui/button';
 import { Clock, Calendar, FileText, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-
-const attendanceData = [
-  { month: 'Jun', percentage: 85 },
-  { month: 'Jul', percentage: 90 },
-  { month: 'Aug', percentage: 88 },
-  { month: 'Sep', percentage: 92 },
-  { month: 'Oct', percentage: 89 },
-  { month: 'Nov', percentage: 87 },
-];
-
-const leaveData = [
-  { name: 'Casual', value: 2, color: 'hsl(var(--primary))' },
-  { name: 'Sick', value: 1, color: 'hsl(var(--chart-2))' },
-  { name: 'Privilege', value: 0, color: 'hsl(var(--chart-3))' },
-];
+import { attendanceApi, leavesApi, profileApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function EmployeeDashboard() {
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({ daysPresent: 0, leavesTaken: 0, pendingRequests: 0 });
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const [leaveData, setLeaveData] = useState<any[]>([]);
+  const [latestPayslip, setLatestPayslip] = useState<any>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Load attendance stats for current month
+      const attendanceStats = await attendanceApi.stats({ month: currentMonth }).catch(() => ({ days: 0, hours: 0 }));
+      
+      // Load leaves for current month
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      const leaves = await leavesApi.list({ start: startOfMonth, end: endOfMonth }).catch(() => ({ items: [] }));
+      
+      // Count leaves taken and pending
+      const leavesTaken = leaves.items?.filter((l: any) => l.status === 'APPROVED').length || 0;
+      const pendingRequests = leaves.items?.filter((l: any) => l.status === 'PENDING').length || 0;
+      
+      // Load profile for leave balances
+      const profile = await profileApi.getMe().catch(() => ({ metadata: {} }));
+      const leaveBalances = profile.metadata?.leaveBalances || {};
+      
+      setStats({
+        daysPresent: attendanceStats.days,
+        leavesTaken,
+        pendingRequests,
+      });
+      
+      // Generate attendance trend for last 6 months
+      const attendanceTrend = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const monthStats = await attendanceApi.stats({ month: monthStr }).catch(() => ({ days: 0 }));
+        const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const percentage = daysInMonth > 0 ? Math.round((monthStats.days / daysInMonth) * 100) : 0;
+        attendanceTrend.push({
+          month: d.toLocaleString('default', { month: 'short' }),
+          percentage,
+        });
+      }
+      setAttendanceData(attendanceTrend);
+      
+      // Generate leave distribution
+      const leaveTypes = [
+        { name: 'Casual', value: leaveBalances.casual?.used || 0, color: 'hsl(var(--primary))' },
+        { name: 'Sick', value: leaveBalances.sick?.used || 0, color: 'hsl(var(--chart-2))' },
+        { name: 'Earned', value: leaveBalances.earned?.used || 0, color: 'hsl(var(--chart-3))' },
+      ];
+      setLeaveData(leaveTypes);
+      
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -31,12 +84,12 @@ export default function EmployeeDashboard() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Days Present" value={18} icon={Clock} subtitle="This month" />
-          <StatCard title="Leaves Taken" value={2} icon={Calendar} subtitle="This month" />
-          <StatCard title="Pending Requests" value={1} icon={FileText} />
+          <StatCard title="Days Present" value={loading ? '...' : stats.daysPresent} icon={Clock} subtitle="This month" />
+          <StatCard title="Leaves Taken" value={loading ? '...' : stats.leavesTaken} icon={Calendar} subtitle="This month" />
+          <StatCard title="Pending Requests" value={loading ? '...' : stats.pendingRequests} icon={FileText} />
           <StatCard
             title="Net Pay"
-            value="₹73,500"
+            value={loading ? '...' : latestPayslip ? `₹${latestPayslip.net}` : 'N/A'}
             icon={DollarSign}
             subtitle="Last month"
           />
@@ -48,6 +101,9 @@ export default function EmployeeDashboard() {
               <CardTitle>Attendance Trend (6 Months)</CardTitle>
             </CardHeader>
             <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center h-[250px]">Loading...</div>
+              ) : (
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={attendanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -58,6 +114,7 @@ export default function EmployeeDashboard() {
                   <Line type="monotone" dataKey="percentage" stroke="hsl(var(--primary))" strokeWidth={2} name="Attendance %" />
                 </LineChart>
               </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
@@ -66,6 +123,9 @@ export default function EmployeeDashboard() {
               <CardTitle>Leave Distribution</CardTitle>
             </CardHeader>
             <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center h-[250px]">Loading...</div>
+              ) : (
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
@@ -85,6 +145,7 @@ export default function EmployeeDashboard() {
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>
