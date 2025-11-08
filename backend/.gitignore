@@ -1,0 +1,8 @@
+node_modules
+.dist
+coverage
+dist
+.env
+.prisma
+.DS_Store
+*.log

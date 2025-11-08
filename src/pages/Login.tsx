@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -132,6 +132,13 @@ export default function Login() {
                   {isLoading ? 'Signing in...' : 'Sign In'}
                 </Button>
               </form>
+
+              <div className="mt-4 text-center text-sm text-muted-foreground">
+                Don't have an account?{' '}
+                <Link to="/signup" className="text-primary hover:underline">
+                  Sign up
+                </Link>
+              </div>
 
               <div className="mt-6 space-y-2 rounded-lg bg-muted p-4 text-xs">
                 <p className="font-medium text-muted-foreground">Demo Accounts:</p>

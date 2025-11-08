@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  REMOTE
+}
+
+enum LeaveType {
+  SICK
+  CASUAL
+  EARNED
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrunStatus {
+  DRAFT
+  PROCESSING
+  FINALIZED
+}
+
+enum MlJobType {
+  FACE_ENROLL
+  FACE_VERIFY
+  RESUME_PARSE
+}
+
+enum MlJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+// ---------- Models ----------
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  name             String
+  passwordHash     String
+  roleId           String
+  role             Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  refreshTokenHash String?
+  sessions         Session[]
+  profile          EmployeeProfile?
+  uploads          Upload[]
+  faceEmbedding    FaceEmbedding?
+  attendance       Attendance[]
+  leaveRequests    LeaveRequest[]
+  payslips         Payslip[]
+  auditLogs        AuditLog[]
+  mlJobs           MlJob[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([roleId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmployeeProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode   String   @unique
+  department     String?
+  designation    String?
+  managerId      String?
+  phone          String?
+  address        Json?
+  resumeUploadId String?
+  parsed_resume  Json?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Upload {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      String
+  provider  String   @default("cloudinary")
+  url       String
+  publicId  String?
+  mimeType  String?
+  size      Int?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model FaceEmbedding {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  embedding Json // array of numbers
+  createdAt DateTime @default(now())
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  checkIn   DateTime?
+  checkOut  DateTime?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         LeaveType
+  status       LeaveStatus @default(PENDING)
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  approvedById String?
+  approvedAt   DateTime?
+  metadata     Json?
+  createdAt    DateTime    @default(now())
+
+  @@index([userId, status])
+  @@index([startDate, endDate])
+}
+
+model Payrun {
+  id        String       @id @default(cuid())
+  year      Int
+  month     Int
+  status    PayrunStatus @default(DRAFT)
+  metadata  Json?
+  createdAt DateTime     @default(now())
+  payslips  Payslip[]
+
+  @@unique([year, month])
+}
+
+model Payslip {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payrunId    String
+  payrun      Payrun   @relation(fields: [payrunId], references: [id], onDelete: Cascade)
+  gross       Decimal  @db.Decimal(12, 2)
+  net         Decimal  @db.Decimal(12, 2)
+  components  Json?
+  pdfUploadId String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, payrunId])
+  @@index([payrunId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String?
+  entityId  String?
+  ip        String?
+  userAgent String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+}
+
+model MlJob {
+  id        String      @id @default(cuid())
+  type      MlJobType
+  status    MlJobStatus @default(QUEUED)
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  input     Json?
+  output    Json?
+  error     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([status])
+}
