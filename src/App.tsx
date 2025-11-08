@@ -8,7 +8,13 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
 import EmployeeProfile from "./pages/employee/EmployeeProfile";
+import EmployeeAttendance from "./pages/employee/Attendance";
+import EmployeeLeaves from "./pages/employee/Leaves";
+import EmployeePayslips from "./pages/employee/Payslips";
 import HRDashboard from "./pages/hr/HRDashboard";
+import HREmployees from "./pages/hr/Employees";
+import HRAttendance from "./pages/hr/Attendance";
+import HRLeaves from "./pages/hr/Leaves";
 import PayrollDashboard from "./pages/payroll/PayrollDashboard";
 import Payruns from "./pages/payroll/Payruns";
 import Configuration from "./pages/payroll/Configuration";
@@ -46,6 +52,30 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/employee/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['employee']}>
+                  <EmployeeAttendance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee/leaves"
+              element={
+                <ProtectedRoute allowedRoles={['employee']}>
+                  <EmployeeLeaves />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee/payslips"
+              element={
+                <ProtectedRoute allowedRoles={['employee']}>
+                  <EmployeePayslips />
+                </ProtectedRoute>
+              }
+            />
             
             {/* HR Routes */}
             <Route
@@ -53,6 +83,30 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['hr']}>
                   <HRDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/hr/employees"
+              element={
+                <ProtectedRoute allowedRoles={['hr']}>
+                  <HREmployees />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/hr/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['hr']}>
+                  <HRAttendance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/hr/leaves"
+              element={
+                <ProtectedRoute allowedRoles={['hr']}>
+                  <HRLeaves />
                 </ProtectedRoute>
               }
             />
