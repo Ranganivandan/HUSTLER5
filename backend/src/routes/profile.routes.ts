@@ -7,8 +7,8 @@ export const profileRouter = Router();
 
 profileRouter.use(authenticate);
 
-// HR/Admin list all profiles
-profileRouter.get('/', authorize(['admin','hr']), list);
+// HR/Admin/Payroll list all profiles
+profileRouter.get('/', authorize(['admin','hr','payroll']), list);
 
 // Employee self endpoints
 profileRouter.get('/me', getMe);

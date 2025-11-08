@@ -61,22 +61,50 @@ async function main() {
       },
     });
 
-    // Ensure profile exists with default leave balances for demo
+    // Ensure profile exists with default leave balances, department, and salary for demo
     const existingProfile = await prisma.employeeProfile.findUnique({ where: { userId: user.id } });
+    
+    // Assign departments based on role
+    const departments = ['Engineering', 'Product', 'Sales', 'HR', 'Finance'];
+    const department = demoUser.roleName === 'employee' 
+      ? departments[Math.floor(Math.random() * departments.length)]
+      : demoUser.roleName === 'hr' ? 'HR' : 'Engineering';
+    
+    // Assign salary based on role
+    const baseSalary = demoUser.roleName === 'admin' ? 80000 
+      : demoUser.roleName === 'hr' ? 60000
+      : demoUser.roleName === 'payroll' ? 55000
+      : 30000 + Math.floor(Math.random() * 40000); // 30k-70k for employees
+    
     if (!existingProfile) {
       await prisma.employeeProfile.create({
         data: {
           userId: user.id,
           employeeCode: `WZ-${user.id.slice(0, 8)}`,
-          metadata: { leaveBalance: { SICK: 5, CASUAL: 5, EARNED: 10, UNPAID: 9999 } },
+          department,
+          designation: demoUser.roleName === 'employee' ? 'Software Engineer' : demoUser.roleName.toUpperCase(),
+          metadata: { 
+            leaveBalance: { SICK: 5, CASUAL: 5, EARNED: 10, UNPAID: 9999 },
+            basicSalary: baseSalary,
+          },
         },
       });
     } else {
       const meta: any = existingProfile.metadata ?? {};
       if (!meta.leaveBalance) {
         meta.leaveBalance = { SICK: 5, CASUAL: 5, EARNED: 10, UNPAID: 9999 };
-        await prisma.employeeProfile.update({ where: { userId: user.id }, data: { metadata: meta } });
       }
+      if (!meta.basicSalary) {
+        meta.basicSalary = baseSalary;
+      }
+      await prisma.employeeProfile.update({ 
+        where: { userId: user.id }, 
+        data: { 
+          metadata: meta,
+          department: existingProfile.department || department,
+          designation: existingProfile.designation || (demoUser.roleName === 'employee' ? 'Software Engineer' : demoUser.roleName.toUpperCase()),
+        } 
+      });
     }
   }
 
