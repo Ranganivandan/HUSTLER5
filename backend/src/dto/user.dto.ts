@@ -14,6 +14,7 @@ export const createUserSchema = z.object({
   password: z.string().min(8).optional(), // Optional - will auto-generate if not provided
   role: z.enum(['employee','hr','payroll','admin']).default('employee').optional(),
   department: z.string().optional(),
+  salary: z.coerce.number().positive().optional(), // Monthly salary
   sendCredentials: z.coerce.boolean().default(true).optional(), // Send credentials email
 });
 export type CreateUserDto = z.infer<typeof createUserSchema>;

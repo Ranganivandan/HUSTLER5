@@ -39,6 +39,7 @@ export async function createUser(data: {
   password?: string; // Optional - will auto-generate if not provided
   role?: 'employee'|'hr'|'payroll'|'admin'; 
   department?: string;
+  salary?: number; // Monthly salary
   actorId: string; 
   ip?: string; 
   userAgent?: string; 
@@ -72,6 +73,7 @@ export async function createUser(data: {
         userId: user.id, 
         employeeCode,
         department: data.department || null,
+        salary: data.salary || null,
         metadata: { leaveBalance: { SICK: 10, CASUAL: 12, EARNED: 15, UNPAID: 0 } } as any
       } 
     });

@@ -3,12 +3,17 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { router as apiRouter } from './routes';
 import { requestLogger } from './middlewares/request-logger.middleware';
+import { errorHandler } from './middlewares/error-handler.middleware';
+import { sanitizeInput } from './middlewares/sanitize.middleware';
 import cookieParser from 'cookie-parser';
 
 export function createApp() {
   const app = express();
 
+  // Security headers
   app.use(helmet());
+  
+  // CORS configuration
   app.use(cors({
     origin: true,
     credentials: true,
@@ -18,10 +23,23 @@ export function createApp() {
     maxAge: 86400,
   }));
   app.options('*', cors());
-  app.use(express.json({ limit: '2mb' }));
-  app.use(express.urlencoded({ extended: true }));
+  
+  // Body parsing with size limits
+  app.use(express.json({ 
+    limit: '2mb',
+    strict: true, // Only accept arrays and objects
+  }));
+  app.use(express.urlencoded({ 
+    extended: true,
+    limit: '2mb',
+    parameterLimit: 100, // Limit number of parameters
+  }));
+  
   app.use(cookieParser());
   app.use(requestLogger);
+  
+  // Input sanitization (must be after body parsing)
+  app.use(sanitizeInput);
 
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
@@ -34,12 +52,8 @@ export function createApp() {
     res.status(404).json({ error: 'Not Found' });
   });
 
-  // Error handler
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err);
-    res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
-  });
+  // Centralized error handler (must be last)
+  app.use(errorHandler);
 
   return app;
 }
