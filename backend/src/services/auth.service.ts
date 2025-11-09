@@ -4,6 +4,7 @@ import { prisma } from './prisma.service';
 import { config } from '../config';
 import { signAccessToken } from './jwt.service';
 import { SessionRepository } from '../repositories/session.repository';
+import { ConflictError, UnauthorizedError, NotFoundError, AppError } from '../utils/errors';
 
 // Simple in-memory rate limiter for dev (key: email)
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -19,7 +20,7 @@ function checkRateLimit(key: string) {
   }
   item.count += 1;
   if (item.count > MAX_ATTEMPTS) {
-    throw Object.assign(new Error('Too many attempts, try again later'), { status: 429 });
+    throw new AppError('Too many attempts, try again later', 429);
   }
 }
 
@@ -30,11 +31,11 @@ function hashRefreshToken(token: string) {
 
 export async function signup(email: string, password: string, fullName: string) {
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw Object.assign(new Error('Email already registered'), { status: 409 });
+  if (existing) throw new ConflictError('Email already registered');
 
   // find employee role
   const role = await prisma.role.findUnique({ where: { name: 'employee' } });
-  if (!role) throw new Error('Employee role missing. Run seed.');
+  if (!role) throw new NotFoundError('Employee role missing. Run seed.');
 
   const passwordHash = await bcrypt.hash(password, config.bcryptRounds);
 
@@ -68,10 +69,10 @@ export async function login(email: string, password: string, ip?: string, userAg
   checkRateLimit(email.toLowerCase());
 
   const user = await prisma.user.findUnique({ where: { email }, include: { role: true } });
-  if (!user) throw Object.assign(new Error('Invalid credentials'), { status: 401 });
+  if (!user) throw new UnauthorizedError('Invalid credentials');
 
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) throw Object.assign(new Error('Invalid credentials'), { status: 401 });
+  if (!ok) throw new UnauthorizedError('Invalid credentials');
 
   const roleName = user.role.name;
   const accessToken = signAccessToken({ sub: user.id, role: roleName }, config.jwt.accessTtl);
@@ -98,7 +99,7 @@ export async function refresh(refreshToken: string) {
       break;
     }
   }
-  if (!matched) throw Object.assign(new Error('Invalid token'), { status: 401 });
+  if (!matched) throw new UnauthorizedError('Invalid refresh token');
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: matched.userId } });
   const role = await prisma.role.findUniqueOrThrow({ where: { id: user.roleId } });
@@ -130,12 +131,15 @@ export async function logout(refreshToken?: string, userId?: string) {
 }
 
 export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
   // Verify current password
   const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!isValid) {
-    throw Object.assign(new Error('Current password is incorrect'), { status: 401 });
+    throw new UnauthorizedError('Current password is incorrect');
   }
   
   // Hash new password
