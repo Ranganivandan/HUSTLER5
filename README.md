@@ -3,6 +3,9 @@
 # 🧠 WorkZen – Smart Human Resource Management System  
 ### Simplifying HR Operations for Smarter Workplaces
 
+Drive Link for video : https://drive.google.com/file/d/1q5YX_WYg1wi2iOT6-i4AaVa48JqgzpEk/view?usp=sharing
+
+
 ![React](https://img.shields.io/badge/Frontend-React.js-blue?logo=react)
 ![Express](https://img.shields.io/badge/Backend-Express.js-black?logo=express)
 ![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-316192?logo=postgresql)
