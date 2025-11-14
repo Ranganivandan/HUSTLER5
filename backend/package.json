@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "WorkZen HRMS Backend",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "main": "dist/server.js",
   "license": "MIT",
   "scripts": {
