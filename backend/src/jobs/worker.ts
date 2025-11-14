@@ -30,11 +30,6 @@ export async function startWorker() {
   return boss;
 }
 
-// Allow running as a standalone worker process
-if (import.meta.url === `file://${process.argv[1]}`) {
-  startWorker().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('Worker failed to start', err);
-    process.exit(1);
-  });
-}
+// NOTE: Standalone ESM launch via import.meta was removed to support CommonJS compilation.
+// To run this worker explicitly, use the provided npm script:
+//   yarn worker:start
