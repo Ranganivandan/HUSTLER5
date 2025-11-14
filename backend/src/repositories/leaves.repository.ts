@@ -41,4 +41,7 @@ export const LeavesRepository = {
 
   reject: (id: string, approverId: string, reason?: string) =>
     prisma.leaveRequest.update({ where: { id }, data: { status: 'REJECTED', metadata: { reason } } }),
+
+  cancel: (id: string) =>
+    prisma.leaveRequest.update({ where: { id }, data: { status: 'CANCELLED' } }),
 };

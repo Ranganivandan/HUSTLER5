@@ -12,5 +12,5 @@ analyticsRouter.get('/overview', authorize(['admin','hr','payroll']), overview);
 // Attendance chart (admin/hr)
 analyticsRouter.get('/attendance', authorize(['admin','hr']), attendance);
 
-// Payroll totals (admin/payroll)
-analyticsRouter.get('/payroll', authorize(['admin','payroll']), payroll);
+// Payroll totals (admin/payroll/hr)
+analyticsRouter.get('/payroll', authorize(['admin','payroll','hr']), payroll);

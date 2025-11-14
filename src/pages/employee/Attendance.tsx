@@ -7,6 +7,7 @@ import { attendanceApi, officeLocationApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { AttendanceCalendar } from '@/components/employee/AttendanceCalendar';
 import { Badge } from '@/components/ui/badge';
+import { useAttendanceStatus } from '@/contexts/AttendanceStatusContext';
 
 type ViewAttendance = { date: string; status: 'present'|'absent'|'leave'|'holiday'; inTime?: string; outTime?: string; hours?: number };
 
@@ -16,9 +17,11 @@ export default function Attendance() {
   const [days, setDays] = useState(0);
   const [hours, setHours] = useState(0);
   const [hasMarkedToday, setHasMarkedToday] = useState(false);
+  const [hasCheckedOut, setHasCheckedOut] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [officeLocation, setOfficeLocation] = useState<any>(null);
   const { toast } = useToast();
+  const { setStatus } = useAttendanceStatus();
 
   const monthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
 
@@ -57,8 +60,31 @@ export default function Attendance() {
         setRecords(mapped);
         setDays(stat.days);
         setHours(stat.hours);
-        const today = new Date().toISOString().slice(0, 10);
-        setHasMarkedToday(mapped.some((m) => m.date === today && !!m.inTime));
+        
+        // Get today's date in local timezone
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+        
+        console.log('Today:', today);
+        console.log('Records:', mapped.map(m => ({ date: m.date, inTime: m.inTime, outTime: m.outTime })));
+        
+        const todayRecord = mapped.find((m) => m.date === today);
+        console.log('Today Record:', todayRecord);
+        
+        setHasMarkedToday(!!todayRecord?.inTime);
+        setHasCheckedOut(!!todayRecord?.outTime);
+        
+        // Update global status based on today's record
+        if (!todayRecord || !todayRecord.inTime) {
+          console.log('Setting status: not-checked-in');
+          setStatus('not-checked-in');
+        } else if (todayRecord.outTime) {
+          console.log('Setting status: checked-out');
+          setStatus('checked-out');
+        } else {
+          console.log('Setting status: checked-in');
+          setStatus('checked-in');
+        }
       } catch (e) {
         toast({ title: 'Failed to load attendance', description: e instanceof Error ? e.message : 'Error', variant: 'destructive' });
       } finally {
@@ -117,13 +143,16 @@ export default function Attendance() {
       const result = await attendanceApi.checkin({ method: 'manual', location });
       setGettingLocation(false);
       
+      // Update global status
+      setStatus('checked-in');
+      
       if (result.distance !== undefined) {
         toast({ 
           title: 'Checked in successfully', 
           description: `You are ${result.distance}m from office` 
         });
       } else {
-        toast({ title: 'Checked in' });
+        toast({ title: 'Checked in successfully' });
       }
       // Refresh
       const list = await attendanceApi.list({ month: monthStr });
@@ -138,8 +167,11 @@ export default function Attendance() {
         return { date: r.date.slice(0, 10), status: 'present', inTime, outTime, hours: hrs };
       });
       setRecords(mapped);
-      const today = new Date().toISOString().slice(0, 10);
-      setHasMarkedToday(mapped.some((m) => m.date === today && !!m.inTime));
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+      const todayRecord = mapped.find((m) => m.date === today);
+      setHasMarkedToday(!!todayRecord?.inTime);
+      setHasCheckedOut(!!todayRecord?.outTime);
     } catch (e: any) {
       setGettingLocation(false);
       toast({ 
@@ -172,7 +204,11 @@ export default function Attendance() {
 
       await attendanceApi.checkout({ location });
       setGettingLocation(false);
-      toast({ title: 'Checked out' });
+      
+      // Update global status
+      setStatus('checked-out');
+      
+      toast({ title: 'Checked out successfully' });
       // Refresh
       const list = await attendanceApi.list({ month: monthStr });
       const mapped: ViewAttendance[] = list.map((r) => {
@@ -186,6 +222,11 @@ export default function Attendance() {
         return { date: r.date.slice(0, 10), status: 'present', inTime, outTime, hours: hrs };
       });
       setRecords(mapped);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+      const todayRecord = mapped.find((m) => m.date === today);
+      setHasMarkedToday(!!todayRecord?.inTime);
+      setHasCheckedOut(!!todayRecord?.outTime);
     } catch (e: any) {
       setGettingLocation(false);
       toast({ 
@@ -271,16 +312,33 @@ export default function Attendance() {
         )}
 
         {/* Mark Attendance */}
-        {!hasMarkedToday && (
-          <Card className="border-primary/50">
-            <CardContent className="flex items-center justify-between p-6">
+        <Card className={!hasMarkedToday ? "border-primary/50" : hasCheckedOut ? "border-red-500/50" : "border-green-500/50"}>
+          <CardContent className="flex items-center justify-between p-6">
+            <div className="flex items-center gap-4">
+              {/* Status Indicator */}
+              <div className={`w-4 h-4 rounded ${!hasMarkedToday ? 'bg-gray-400' : hasCheckedOut ? 'bg-red-500' : 'bg-green-500'}`} />
+              
               <div>
-                <h3 className="font-semibold">Mark Today's Attendance</h3>
+                <h3 className="font-semibold">
+                  {!hasMarkedToday ? 'Mark Today\'s Attendance' : hasCheckedOut ? 'You\'re checked out' : 'You\'re checked in'}
+                </h3>
                 <p className="text-sm text-muted-foreground">
-                  {officeLocation ? 'Location will be verified' : "Don't forget to punch in!"}
+                  {!hasMarkedToday 
+                    ? (officeLocation ? 'Location will be verified' : "Don't forget to punch in!")
+                    : hasCheckedOut
+                    ? 'See you tomorrow!'
+                    : (officeLocation ? 'Location will be verified on checkout' : 'Remember to punch out at end of day')
+                  }
                 </p>
               </div>
-              <Button onClick={handleCheckin} disabled={loading || gettingLocation}>
+            </div>
+            
+            {!hasCheckedOut && (
+              <Button 
+                onClick={!hasMarkedToday ? handleCheckin : handleCheckout} 
+                disabled={loading || gettingLocation}
+                variant={hasMarkedToday ? "outline" : "default"}
+              >
                 {gettingLocation ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -289,38 +347,13 @@ export default function Attendance() {
                 ) : (
                   <>
                     <Clock className="mr-2 h-4 w-4" />
-                    Punch In
+                    {!hasMarkedToday ? 'Punch In' : 'Punch Out'}
                   </>
                 )}
               </Button>
-            </CardContent>
-          </Card>
-        )}
-        {hasMarkedToday && (
-          <Card>
-            <CardContent className="flex items-center justify-between p-6">
-              <div>
-                <h3 className="font-semibold">You're checked in</h3>
-                <p className="text-sm text-muted-foreground">
-                  {officeLocation ? 'Location will be verified on checkout' : 'Remember to punch out at end of day'}
-                </p>
-              </div>
-              <Button variant="outline" onClick={handleCheckout} disabled={loading || gettingLocation}>
-                {gettingLocation ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Getting Location...
-                  </>
-                ) : (
-                  <>
-                    <Clock className="mr-2 h-4 w-4" />
-                    Punch Out
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
         {/* Calendar */}
         <AttendanceCalendar attendance={records} />

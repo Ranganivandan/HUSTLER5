@@ -3,6 +3,16 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import { applyLeaveSchema, listLeavesQuerySchema, decisionSchema } from '../dto/leaves.dto';
 import { LeavesService } from '../services/leaves.service';
 
+export async function getMyBalances(req: AuthRequest, res: Response) {
+  try {
+    const data = await LeavesService.getBalances(req.user!.sub);
+    return res.json(data);
+  } catch (e) {
+    const err = e as any;
+    return res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  }
+}
+
 export async function apply(req: AuthRequest, res: Response) {
   try {
     const parsed = applyLeaveSchema.safeParse(req.body);
@@ -45,6 +55,17 @@ export async function reject(req: AuthRequest, res: Response) {
     const parsed = decisionSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const updated = await LeavesService.reject(id, { id: req.user!.sub, role: req.user!.role }, parsed.data.reason, req.ip, req.get('user-agent') || undefined);
+    return res.json(updated);
+  } catch (e) {
+    const err = e as any;
+    return res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  }
+}
+
+export async function cancel(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id;
+    const updated = await LeavesService.cancel(id, { id: req.user!.sub, role: req.user!.role }, req.ip, req.get('user-agent') || undefined);
     return res.json(updated);
   } catch (e) {
     const err = e as any;

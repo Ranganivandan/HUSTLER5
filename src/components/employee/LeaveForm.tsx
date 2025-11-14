@@ -37,11 +37,12 @@ interface LeaveFormData {
 
 interface LeaveFormProps {
   leaveBalance: { casual: number; sick: number; privilege: number };
+  policy?: { maxConsecutiveDays?: number };
   onSubmit: (data: LeaveFormData) => void;
   onSaveDraft?: (data: LeaveFormData) => void;
 }
 
-export function LeaveForm({ leaveBalance, onSubmit, onSaveDraft }: LeaveFormProps) {
+export function LeaveForm({ leaveBalance, policy, onSubmit, onSaveDraft }: LeaveFormProps) {
   const form = useForm<LeaveFormData>();
 
   const handleSubmit = (data: LeaveFormData) => {
@@ -50,8 +51,34 @@ export function LeaveForm({ leaveBalance, onSubmit, onSaveDraft }: LeaveFormProp
                     selectedType === 'sick' ? leaveBalance.sick : 
                     leaveBalance.privilege;
 
-    if (balance <= 0) {
+    // basic presence
+    if (!data.fromDate || !data.toDate) {
+      toast.error('Please select a valid date range');
+      return;
+    }
+
+    // compute inclusive days
+    const start = new Date(data.fromDate);
+    const end = new Date(data.toDate);
+    const ms = end.getTime() - start.getTime();
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
+
+    if (days <= 0) {
+      toast.error('End date must be on or after start date');
+      return;
+    }
+
+    if (policy?.maxConsecutiveDays && days > policy.maxConsecutiveDays) {
+      toast.error(`Cannot apply more than ${policy.maxConsecutiveDays} consecutive days`);
+      return;
+    }
+
+    if (selectedType !== 'unpaid' && balance <= 0) {
       toast.error('Insufficient leave balance');
+      return;
+    }
+    if (selectedType !== 'unpaid' && days > balance) {
+      toast.error(`You only have ${balance} days available for this leave type`);
       return;
     }
 
@@ -84,6 +111,11 @@ export function LeaveForm({ leaveBalance, onSubmit, onSaveDraft }: LeaveFormProp
               <p className="text-sm text-muted-foreground">Privilege</p>
             </div>
           </div>
+          {policy?.maxConsecutiveDays ? (
+            <div className="text-xs text-muted-foreground text-right">
+              Max consecutive days allowed: {policy.maxConsecutiveDays}
+            </div>
+          ) : null}
         </div>
 
         <FormField

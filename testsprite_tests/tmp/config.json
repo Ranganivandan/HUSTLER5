@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8081/http://localhost:8080/admin/dashboard",
+  "backendAuthType": "Bearer token",
+  "backendCredential": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbWhxcHpqOTUwMDA3cTZnaTA0cnd2MXl0Iiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYyODY1MjgyLCJleHAiOjE3NjI4Njg4ODJ9.hjWaEv2nn89QGVthte0CmfHnlKgqCkJfI-drIbAMi98",
+  "executionArgs": {
+    "projectName": "zenwork-hub",
+    "projectPath": "c:\\Users\\DARSHAN\\Desktop\\odoo2.0-hackathon\\zenwork-hub",
+    "testIds": [],
+    "additionalInstruction": "Use baseUrl http://localhost:8081 for frontend and http://localhost:4000 for API. If authentication is required, prefer using the signup/login flow to create a temporary HR user or fall back to employee role for read-only pages. Clean up any created test data where possible.",
+    "envs": {
+      "API_KEY": "sk-user-mc-A1fhf2Md0Em70IimjbOOswmzClXYdmKygvXiNBi7XL3EnoWLauw87uB4iK3RAG9tL9tApib3LCvj4itWk82o7PmmrGs2QSNIgpJZXCbFxInRL3Lj1UtGzSrLxhRv5tEk"
+    }
+  },
+  "proxy": "http://306d4506-b5a0-4e3e-a1f8-cedce0936ff9:conu22PDB2ol7P5cBf6WKZaYmCh0ktb6@tun.testsprite.com:8080"
+}

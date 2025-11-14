@@ -1,0 +1,228 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "Express",
+    "React",
+    "Vite",
+    "PostgreSQL",
+    "Prisma",
+    "TailwindCSS",
+    "shadcn/ui",
+    "Zod",
+    "JWT"
+  ],
+  "features": [
+    {
+      "name": "Auth",
+      "description": "Email/password signup, login, refresh token rotation, logout, change password",
+      "files": [
+        "backend/src/controllers/auth.controller.ts",
+        "backend/src/routes/auth.routes.ts",
+        "backend/src/services/auth.service.ts",
+        "backend/src/services/jwt.service.ts",
+        "backend/src/repositories/session.repository.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Auth API", "version": "1.0.0" },
+        "paths": {
+          "/v1/auth/signup": { "post": { "summary": "Signup", "requestBody": {"required": true}, "responses": {"200": {"description": "OK"}} } },
+          "/v1/auth/login": { "post": { "summary": "Login", "requestBody": {"required": true}, "responses": {"200": {"description": "OK"}} } },
+          "/v1/auth/refresh": { "post": { "summary": "Refresh access token", "responses": {"200": {"description": "OK"}} } },
+          "/v1/auth/logout": { "post": { "summary": "Logout", "responses": {"200": {"description": "OK"}} } },
+          "/v1/auth/change-password": { "post": { "summary": "Change password", "responses": {"200": {"description": "OK"}} } }
+        }
+      }
+    },
+    {
+      "name": "Users",
+      "description": "CRUD and listing users with roles and activation",
+      "files": [
+        "backend/src/controllers/users.controller.ts",
+        "backend/src/routes/users.routes.ts",
+        "backend/src/services/users.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Users API", "version": "1.0.0" },
+        "paths": {
+          "/v1/users": { "get": {"summary": "List users"}, "post": {"summary": "Create user"} },
+          "/v1/users/{id}": { "get": {"summary": "Get by id"}, "put": {"summary": "Update"}, "delete": {"summary": "Delete"} }
+        }
+      }
+    },
+    {
+      "name": "Profile",
+      "description": "Employee profile self-service and admin read",
+      "files": [
+        "backend/src/controllers/profile.controller.ts",
+        "backend/src/routes/profile.routes.ts",
+        "backend/src/services/profile.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Profile API", "version": "1.0.0" },
+        "paths": {
+          "/v1/profile": { "get": {"summary": "List profiles (admin/hr)"} },
+          "/v1/profile/me": { "get": {"summary": "Get my profile"}, "put": {"summary": "Update my profile"} },
+          "/v1/profile/{userId}": { "get": {"summary": "Get by user id"} }
+        }
+      }
+    },
+    {
+      "name": "Attendance",
+      "description": "Employee check-in/out with geofencing, listing and stats",
+      "files": [
+        "backend/src/controllers/attendance.controller.ts",
+        "backend/src/routes/attendance.routes.ts",
+        "backend/src/services/attendance.service.ts",
+        "backend/src/services/geolocation.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Attendance API", "version": "1.0.0" },
+        "paths": {
+          "/v1/attendance/checkin": { "post": {"summary": "Check-in"} },
+          "/v1/attendance/checkout": { "post": {"summary": "Check-out"} },
+          "/v1/attendance": { "get": {"summary": "List my or specific user's attendance"} },
+          "/v1/attendance/stats": { "get": {"summary": "Attendance stats"} },
+          "/v1/attendance/summary": { "get": {"summary": "Summary by user for month (admin/hr)"} },
+          "/v1/attendance/all": { "get": {"summary": "All attendance for month (admin/hr)"} }
+        }
+      }
+    },
+    {
+      "name": "Office Location",
+      "description": "Configure office geofence used by attendance",
+      "files": [
+        "backend/src/controllers/office-location.controller.ts",
+        "backend/src/routes/office-location.routes.ts",
+        "backend/src/services/office-location.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Office Location API", "version": "1.0.0" },
+        "paths": {
+          "/v1/office-location": { "get": {"summary": "Get"}, "post": {"summary": "Set"}, "delete": {"summary": "Delete"} },
+          "/v1/office-location/check": { "get": {"summary": "Check configured"} }
+        }
+      }
+    },
+    {
+      "name": "Leaves",
+      "description": "Leave application, balances, approvals, rejections, cancellations",
+      "files": [
+        "backend/src/controllers/leaves.controller.ts",
+        "backend/src/routes/leaves.routes.ts",
+        "backend/src/services/leaves.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Leaves API", "version": "1.0.0" },
+        "paths": {
+          "/v1/leaves/apply": { "post": {"summary": "Apply leave"} },
+          "/v1/leaves": { "get": {"summary": "List leaves"} },
+          "/v1/leaves/{id}/approve": { "put": {"summary": "Approve"} },
+          "/v1/leaves/{id}/reject": { "put": {"summary": "Reject"} },
+          "/v1/leaves/{id}/cancel": { "put": {"summary": "Cancel"} },
+          "/v1/leaves/balances/me": { "get": {"summary": "My balances"} }
+        }
+      }
+    },
+    {
+      "name": "Payroll",
+      "description": "Run monthly payruns, fetch payrun by id, list user payslips, compute inputs, manage templates",
+      "files": [
+        "backend/src/controllers/payroll.controller.ts",
+        "backend/src/controllers/payroll.templates.controller.ts",
+        "backend/src/routes/payroll.routes.ts",
+        "backend/src/services/payroll.service.ts",
+        "backend/src/repositories/payrun.repository.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Payroll API", "version": "1.0.0" },
+        "paths": {
+          "/v1/payroll/run": { "post": {"summary": "Run payrun (admin/payroll)"} },
+          "/v1/payroll/{id}": { "get": {"summary": "Get payrun by id (admin/payroll)"} },
+          "/v1/payroll/payslips/me": { "get": {"summary": "My payslips"} },
+          "/v1/payroll/payslips/{userId}": { "get": {"summary": "Payslips by user (admin/payroll/hr)"} },
+          "/v1/payroll/inputs": { "get": {"summary": "Compute inputs for period (admin/payroll/hr)"} },
+          "/v1/payroll/templates": { "get": {"summary": "List templates"}, "post": {"summary": "Save templates"} },
+          "/v1/payroll/templates/{id}": { "delete": {"summary": "Delete template"} }
+        }
+      }
+    },
+    {
+      "name": "Analytics",
+      "description": "Overview stats, attendance by day, payroll totals (role-guarded)",
+      "files": [
+        "backend/src/controllers/analytics.controller.ts",
+        "backend/src/routes/analytics.routes.ts",
+        "backend/src/services/analytics.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Analytics API", "version": "1.0.0" },
+        "paths": {
+          "/v1/analytics/overview": { "get": {"summary": "Overview (admin/hr/payroll)"} },
+          "/v1/analytics/attendance": { "get": {"summary": "Attendance by day (admin/hr)"} },
+          "/v1/analytics/payroll": { "get": {"summary": "Payroll totals (admin/payroll/hr)"} }
+        }
+      }
+    },
+    {
+      "name": "Settings",
+      "description": "Company, attendance, leaves, payroll, notifications, plus payroll templates storage",
+      "files": [
+        "backend/src/controllers/settings.controller.ts",
+        "backend/src/routes/settings.routes.ts",
+        "backend/src/services/settings.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Settings API", "version": "1.0.0" },
+        "paths": {
+          "/v1/settings": { "get": {"summary": "Get all settings"} },
+          "/v1/settings/{category}": { "get": {"summary": "Get by category"}, "put": {"summary": "Update by category"} }
+        }
+      }
+    },
+    {
+      "name": "Reports",
+      "description": "Various analytical reports endpoints for admin/hr/payroll UI",
+      "files": [
+        "backend/src/controllers/reports.controller.ts",
+        "backend/src/routes/reports.routes.ts",
+        "backend/src/services/reports.service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Reports API", "version": "1.0.0" },
+        "paths": {
+          "/v1/reports/company-overview": { "get": {"summary": "Company overview"} },
+          "/v1/reports/department-performance": { "get": {"summary": "Department performance"} },
+          "/v1/reports/payroll-summary": { "get": {"summary": "Payroll summary"} },
+          "/v1/reports/leave-utilization": { "get": {"summary": "Leave utilization"} },
+          "/v1/reports/attendance-analytics": { "get": {"summary": "Attendance analytics"} },
+          "/v1/reports/employee-growth": { "get": {"summary": "Employee growth"} }
+        }
+      }
+    },
+    {
+      "name": "Public",
+      "description": "Public stats with no authentication",
+      "files": [
+        "backend/src/controllers/public.controller.ts",
+        "backend/src/routes/public.routes.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": { "title": "Public API", "version": "1.0.0" },
+        "paths": {
+          "/v1/public/stats": { "get": {"summary": "Public statistics"} }
+        }
+      }
+    }
+  ]
+}

@@ -115,13 +115,56 @@ export function AuditTable() {
       log.target.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleExportCSV = () => {
+    try {
+      // Create CSV header
+      const headers = ['Timestamp', 'User', 'Role', 'Action', 'Target', 'Details'];
+      
+      // Create CSV rows
+      const rows = filteredLogs.map(log => [
+        log.timestamp,
+        log.user,
+        log.role,
+        log.action,
+        log.target,
+        log.details,
+      ]);
+      
+      // Combine headers and rows
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => 
+          row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ),
+      ].join('\n');
+      
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`Exported ${filteredLogs.length} audit logs to CSV`);
+    } catch (error) {
+      toast.error('Failed to export CSV');
+      console.error('CSV export error:', error);
+    }
+  };
+
   return (
     <>
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Audit Logs</CardTitle>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExportCSV}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV
             </Button>

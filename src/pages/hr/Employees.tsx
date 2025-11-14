@@ -42,6 +42,7 @@ export default function Employees() {
     email: '',
     role: 'employee',
     department: '',
+    salary: '',
   });
 
   const load = async () => {
@@ -88,6 +89,7 @@ export default function Employees() {
         email: newEmployee.email,
         role: newEmployee.role as any,
         department: newEmployee.department || undefined,
+        salary: newEmployee.salary ? Number(newEmployee.salary) : undefined,
       });
       
       // Show success message with generated password info
@@ -105,7 +107,7 @@ export default function Employees() {
       await load();
       
       // Reset form and close dialog
-      setNewEmployee({ name: '', email: '', role: 'employee', department: '' });
+      setNewEmployee({ name: '', email: '', role: 'employee', department: '', salary: '' });
       setAddModalOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to create employee');
@@ -254,7 +256,19 @@ export default function Employees() {
                     <SelectItem value="Finance">Finance</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Can be updated in profile later</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="salary">Monthly Salary (Optional)</Label>
+                <Input 
+                  id="salary" 
+                  type="number"
+                  placeholder="Enter monthly salary (e.g., 50000)" 
+                  value={newEmployee.salary}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, salary: e.target.value })}
+                  min="0"
+                  step="1000"
+                />
+                <p className="text-xs text-muted-foreground">Used for payroll calculations</p>
               </div>
             </div>
             <div className="flex justify-end gap-2">

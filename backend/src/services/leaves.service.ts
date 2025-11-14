@@ -1,6 +1,7 @@
 import { prisma } from '../services/prisma.service';
 import { LeavesRepository } from '../repositories/leaves.repository';
 import { AuditService } from './audit.service';
+import { SettingsService } from './settings.service';
 
 function daysBetweenInclusive(start: Date, end: Date) {
   const ms = end.getTime() - start.getTime();
@@ -15,7 +16,48 @@ async function getAvailableBalance(userId: string, type: 'SICK'|'CASUAL'|'EARNED
   return { available, balances, profileId: profile?.id };
 }
 
+async function ensureLeaveBalancesInitialized(userId: string) {
+  const profile = await prisma.employeeProfile.findUnique({ where: { userId } });
+  if (!profile) return;
+  const meta = ((profile.metadata as any) || {}) as Record<string, any>;
+  const balances = (meta.leaveBalance as Record<string, number> | undefined) ?? undefined;
+  if (balances && typeof balances === 'object') return;
+
+  const settings = await SettingsService.getByCategory('leaves');
+  const initialBalances: Record<string, number> = {
+    CASUAL: Number(settings.casualLeavesYearly ?? 0),
+    SICK: Number(settings.sickLeavesYearly ?? 0),
+    EARNED: Number(settings.privilegeLeavesYearly ?? 0),
+  };
+  await prisma.employeeProfile.update({
+    where: { userId },
+    data: { metadata: { ...meta, leaveBalance: initialBalances } },
+  });
+}
+
 export const LeavesService = {
+  async getBalances(userId: string) {
+    await ensureLeaveBalancesInitialized(userId);
+    const profile = await prisma.employeeProfile.findUnique({ where: { userId } });
+    const settings = await SettingsService.getByCategory('leaves');
+    const meta = (profile?.metadata as any) || {};
+    const balances = (meta.leaveBalance as Record<string, number>) || {
+      CASUAL: Number(settings.casualLeavesYearly ?? 0),
+      SICK: Number(settings.sickLeavesYearly ?? 0),
+      EARNED: Number(settings.privilegeLeavesYearly ?? 0),
+    };
+    return {
+      balances,
+      policy: {
+        casualLeavesYearly: Number(settings.casualLeavesYearly ?? 0),
+        sickLeavesYearly: Number(settings.sickLeavesYearly ?? 0),
+        privilegeLeavesYearly: Number(settings.privilegeLeavesYearly ?? 0),
+        maxConsecutiveDays: Number(settings.maxConsecutiveDays ?? 0),
+        allowCarryForward: Boolean(settings.allowCarryForward ?? false),
+      },
+    };
+  },
+
   apply: async (data: { userId: string; type: 'SICK'|'CASUAL'|'EARNED'|'UNPAID'; startDate: Date; endDate: Date; reason?: string; ip?: string; userAgent?: string }) => {
     if (data.endDate < data.startDate) throw Object.assign(new Error('endDate must be after startDate'), { status: 400 });
 
@@ -23,10 +65,22 @@ export const LeavesService = {
     const overlap = await LeavesRepository.overlapsApproved(data.userId, data.startDate, data.endDate);
     if (overlap) throw Object.assign(new Error('Overlapping with an approved leave'), { status: 400 });
 
-    // compute days and check balance (simple)
+    // compute days and check balance (with policy)
     const days = daysBetweenInclusive(data.startDate, data.endDate);
+
+    const leavesSettings = await SettingsService.getByCategory('leaves');
+    const maxConsecutiveDays = Number(leavesSettings.maxConsecutiveDays ?? 0);
+    if (maxConsecutiveDays > 0 && days > maxConsecutiveDays) {
+      throw Object.assign(new Error(`Cannot apply more than ${maxConsecutiveDays} consecutive days`), { status: 400 });
+    }
+
+    // Ensure balances exist based on settings
+    await ensureLeaveBalancesInitialized(data.userId);
+
     const { available } = await getAvailableBalance(data.userId, data.type);
-    if (data.type !== 'UNPAID' && days > available) throw Object.assign(new Error('Insufficient leave balance'), { status: 400 });
+    if (data.type !== 'UNPAID' && days > available) {
+      throw Object.assign(new Error('Insufficient leave balance'), { status: 400 });
+    }
 
     const created = await LeavesRepository.create({ userId: data.userId, type: data.type, startDate: data.startDate, endDate: data.endDate, reason: data.reason });
 
@@ -55,12 +109,20 @@ export const LeavesService = {
     const daysMeta = (leave.metadata as any)?.days as number | undefined;
     const days = daysMeta ?? daysBetweenInclusive(leave.startDate, leave.endDate);
 
+    // enforce policy again on approval
+    const leavesSettings = await SettingsService.getByCategory('leaves');
+    const maxConsecutiveDays = Number(leavesSettings.maxConsecutiveDays ?? 0);
+    if (maxConsecutiveDays > 0 && days > maxConsecutiveDays) {
+      throw Object.assign(new Error(`Cannot approve more than ${maxConsecutiveDays} consecutive days`), { status: 400 });
+    }
+
     // check overlap again just before approval
     const overlap = await LeavesRepository.overlapsApproved(leave.userId, leave.startDate, leave.endDate);
     if (overlap) throw Object.assign(new Error('Overlapping with an approved leave'), { status: 400 });
 
     // deduct balance on approval (except UNPAID)
     if (leave.type !== 'UNPAID') {
+      await ensureLeaveBalancesInitialized(leave.userId);
       const profile = await prisma.employeeProfile.findUnique({ where: { userId: leave.userId } });
       const meta = (profile?.metadata as any) ?? {};
       const balances = (meta.leaveBalance ?? {}) as Record<string, number>;
@@ -83,6 +145,20 @@ export const LeavesService = {
 
     const updated = await LeavesRepository.reject(id, approver.id, reason);
     await AuditService.create({ userId: approver.id, action: 'LEAVE_REJECT', entity: 'LeaveRequest', entityId: id, ip, userAgent, meta: { reason } });
+    return updated;
+  },
+
+  cancel: async (id: string, actor: { id: string; role: string }, ip?: string, userAgent?: string) => {
+    const leave = await LeavesRepository.findById(id);
+    if (!leave) throw Object.assign(new Error('Not found'), { status: 404 });
+    // Only the owner can cancel when pending; admins/hr/payroll may also cancel pending
+    const isOwner = leave.userId === actor.id;
+    const isPrivileged = ['admin','hr','payroll'].includes(actor.role);
+    if (!isOwner && !isPrivileged) throw Object.assign(new Error('Forbidden'), { status: 403 });
+    if (leave.status !== 'PENDING') throw Object.assign(new Error('Only pending requests can be cancelled'), { status: 400 });
+
+    const updated = await LeavesRepository.cancel(id);
+    await AuditService.create({ userId: actor.id, action: 'LEAVE_CANCEL', entity: 'LeaveRequest', entityId: id, ip, userAgent });
     return updated;
   },
 };

@@ -110,7 +110,7 @@ export const usersApi = {
     );
   },
   get: (id: string) => apiClient.get<{ id: string; name: string; email: string; role: { name: string }; isActive: boolean }>(`/v1/users/${id}`),
-  create: (data: { email: string; name: string; password?: string; role?: 'employee'|'hr'|'payroll'|'admin'; department?: string; sendCredentials?: boolean }) =>
+  create: (data: { email: string; name: string; password?: string; role?: 'employee'|'hr'|'payroll'|'admin'; department?: string; salary?: number; sendCredentials?: boolean }) =>
     apiClient.post<{ user: { id: string; name: string; email: string; roleId: string; isActive: boolean }; message: string; generatedPassword?: string }>(`/v1/users`, data),
   update: (id: string, data: { role?: 'employee'|'hr'|'payroll'|'admin'; isActive?: boolean }) =>
     apiClient.put<{ id: string; name: string; email: string; roleId: string; isActive: boolean }>(`/v1/users/${id}`, data),
@@ -170,7 +170,8 @@ export const attendanceApi = {
   },
   checkin: (data: { method: 'manual'|'face'|'mobile'; publicId?: string; location?: { lat: number; lng: number; address?: string } }) =>
     apiClient.post<{ record: any; faceVerified?: boolean; score?: number; reason?: string; distance?: number }>(`/v1/attendance/checkin`, data),
-  checkout: (data?: { location?: { lat: number; lng: number; address?: string } }) => apiClient.post(`/v1/attendance/checkout`, data || {}),
+  checkout: (data?: { location?: { lat: number; lng: number; address?: string } }) => 
+    apiClient.post<{ record: any }>(`/v1/attendance/checkout`, data || {}),
 };
 
 // Office Location API
@@ -199,6 +200,8 @@ export const leavesApi = {
   },
   approve: (id: string) => apiClient.put(`/v1/leaves/${id}/approve`, {}),
   reject: (id: string, reason?: string) => apiClient.put(`/v1/leaves/${id}/reject`, { reason }),
+  getMyBalances: () => apiClient.get<{ balances: { CASUAL: number; SICK: number; EARNED: number }; policy: { casualLeavesYearly: number; sickLeavesYearly: number; privilegeLeavesYearly: number; maxConsecutiveDays: number; allowCarryForward: boolean } }>(`/v1/leaves/balances/me`),
+  cancel: (id: string) => apiClient.put(`/v1/leaves/${id}/cancel`, {}),
 };
 
 // Analytics API
@@ -238,6 +241,20 @@ export const payrollApi = {
   
   // Get payslips by user ID (admin/payroll/hr)
   getPayslipsByUserId: (userId: string) => apiClient.get<Array<{ id: string; payrunId: string; userId: string; gross: number; net: number; components?: any; createdAt: string; payrun?: any }>>(`/v1/payroll/payslips/${userId}`),
+
+  // Compute inputs for a period
+  getInputs: (params: { periodStart: string; periodEnd: string; department?: string }) => {
+    const q = new URLSearchParams();
+    q.set('periodStart', params.periodStart);
+    q.set('periodEnd', params.periodEnd);
+    if (params.department && params.department !== 'all') q.set('department', params.department);
+    return apiClient.get<{ period: any; departments: string[]; items: Array<{ id: string; name: string; employeeCode: string; department: string; basicPay: number; officeScore: number; attendance: number; leaves: number }> }>(`/v1/payroll/inputs?${q.toString()}`);
+  },
+
+  // Templates
+  getTemplates: () => apiClient.get<{ templates: Array<{ id: string; name: string; description?: string; highlights?: string[]; config?: any }> }>(`/v1/payroll/templates`),
+  saveTemplates: (templates: Array<{ id: string; name: string; description?: string; highlights?: string[]; config?: any }>) => apiClient.post<{ templates: any[] }>(`/v1/payroll/templates`, { templates }),
+  deleteTemplate: (id: string) => apiClient.delete<{ templates: any[] }>(`/v1/payroll/templates/${id}`),
 };
 
 // Settings API

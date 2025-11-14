@@ -2,6 +2,7 @@ import { Bell, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAttendanceStatus } from '@/contexts/AttendanceStatusContext';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import {
 
 export function TopBar() {
   const { user, logout } = useAuth();
+  const { status } = useAttendanceStatus();
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-6">
@@ -25,6 +27,22 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Attendance Status Indicator - Only for employees */}
+        {user?.role === 'employee' && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted">
+            <div className={`h-3 w-3 rounded-full ${
+              status === 'checked-in' ? 'bg-green-500 animate-pulse' : 
+              status === 'checked-out' ? 'bg-red-500' : 
+              'bg-gray-400'
+            }`} />
+            <span className="text-xs font-medium">
+              {status === 'checked-in' ? 'Online' : 
+               status === 'checked-out' ? 'Offline' : 
+               'Not Checked In'}
+            </span>
+          </div>
+        )}
+
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" />

@@ -21,16 +21,18 @@ type LeaveRow = { id: string; type: string; fromDate: string; toDate: string; da
 
 export default function Leaves() {
   const [leaveBalance, setLeaveBalance] = useState<{ casual: number; sick: number; privilege: number }>({ casual: 0, sick: 0, privilege: 0 });
+  const [policy, setPolicy] = useState<{ maxConsecutiveDays?: number } | null>(null);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      // load my profile for balances
-      const me: any = await profileApi.getMe();
-      const lb = (me?.metadata?.leaveBalance) ?? {};
-      setLeaveBalance({ casual: lb.CASUAL ?? 0, sick: lb.SICK ?? 0, privilege: lb.EARNED ?? 0 });
+      // load balances from backend policy-aware endpoint
+      const bal = await leavesApi.getMyBalances();
+      const b = bal.balances || ({} as any);
+      setLeaveBalance({ casual: b.CASUAL ?? 0, sick: b.SICK ?? 0, privilege: b.EARNED ?? 0 });
+      setPolicy({ maxConsecutiveDays: bal.policy?.maxConsecutiveDays });
       // load my leaves
       const res = await leavesApi.list({ page: 1, limit: 100 });
       const rows: LeaveRow[] = res.items.map((r) => ({
@@ -70,10 +72,14 @@ export default function Leaves() {
     console.log('Leave draft saved:', data);
   };
 
-  const handleCancel = (id: string) => {
-    // Cancel not implemented in backend; noop
-    console.log('Cancel leave:', id);
-    toast.success('Leave request cancelled');
+  const handleCancel = async (id: string) => {
+    try {
+      await leavesApi.cancel(id);
+      toast.success('Leave request cancelled');
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to cancel leave');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -111,6 +117,7 @@ export default function Leaves() {
               <CardContent>
                 <LeaveForm
                   leaveBalance={leaveBalance}
+                  policy={policy || undefined}
                   onSubmit={handleSubmit}
                   onSaveDraft={handleSaveDraft}
                 />

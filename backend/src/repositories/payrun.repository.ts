@@ -30,9 +30,12 @@ export const PayrunRepository = {
       }> 
     },
   ) => {
+    // 1) Create payrun (initially DRAFT)
     const payrun = await tx.payrun.create({
       data: { year: data.year, month: data.month, metadata: data.metadata ?? {} },
     });
+
+    // 2) Insert payslips (one-by-one to preserve numeric precision with Decimal)
     for (const p of data.payslips) {
       await tx.payslip.create({
         data: {
@@ -58,7 +61,19 @@ export const PayrunRepository = {
         },
       });
     }
-    return payrun;
+
+    // 3) Mark payrun as FINALIZED after successful payslip creation
+    await tx.payrun.update({
+      where: { id: payrun.id },
+      data: { status: 'FINALIZED' },
+    });
+
+    // 4) Return payrun with payslips for immediate verification in API response
+    const result = await tx.payrun.findUnique({
+      where: { id: payrun.id },
+      include: { payslips: true },
+    });
+    return result!;
   },
 
   getByIdWithPayslips: (id: string) =>

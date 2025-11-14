@@ -70,6 +70,79 @@ async function getOfficeScore(tx: any, userId: string, startDate: Date, endDate:
 }
 
 export const PayrollService = {
+  async computeInputs(actor: { id: string; role: string }, periodStart: Date, periodEnd: Date, department: string = 'all') {
+    if (!['admin','payroll'].includes(actor.role)) {
+      const err: any = new Error('Forbidden'); err.status = 403; throw err;
+    }
+    const start = normalizeDateOnly(periodStart);
+    const end = normalizeDateOnly(periodEnd);
+    if (end < start) { const err: any = new Error('Invalid period'); err.status = 400; throw err; }
+
+    return prisma.$transaction(async (tx) => {
+      // load employees with profiles for department and code
+      const whereUser: any = { role: { is: { name: 'employee' } }, isActive: true };
+      const users = await tx.user.findMany({
+        where: whereUser,
+        include: { role: true, profile: true },
+      });
+
+      const filtered = users.filter((u) => {
+        const dept = u.profile?.department || 'Unassigned';
+        return department === 'all' || dept === department;
+      });
+
+      const seenDepartments = new Set<string>();
+      const inputs = [];
+      for (const u of filtered) {
+        const profile = u.profile;
+        const dept = profile?.department || 'Unassigned';
+        seenDepartments.add(dept);
+
+        // salary
+        let basicPay = 0;
+        if (profile?.salary && Number(profile.salary) > 0) basicPay = Number(profile.salary);
+        else if ((profile?.metadata as any)?.basicSalary) basicPay = Number((profile!.metadata as any).basicSalary);
+        else basicPay = 30000;
+
+        // attendance present days in period
+        const presentDays = await tx.attendance.count({
+          where: { userId: u.id, date: { gte: start, lte: end }, NOT: { checkIn: null } },
+        });
+
+        // approved paid leaves days in period
+        const paidLeaves = await tx.leaveRequest.findMany({
+          where: { userId: u.id, status: 'APPROVED', type: { in: ['SICK','CASUAL','EARNED'] }, startDate: { lte: end }, endDate: { gte: start } },
+          select: { startDate: true, endDate: true },
+        });
+        let leaveDays = 0;
+        for (const l of paidLeaves) {
+          const s = l.startDate > start ? l.startDate : start;
+          const e = l.endDate < end ? l.endDate : end;
+          leaveDays += Math.floor((e.getTime() - s.getTime()) / (1000*60*60*24)) + 1;
+        }
+
+        // office score placeholder
+        const officeScore = await getOfficeScore(tx, u.id, start, end);
+
+        inputs.push({
+          id: u.id,
+          name: u.name,
+          employeeCode: profile?.employeeCode || 'N/A',
+          department: dept,
+          basicPay,
+          officeScore,
+          attendance: presentDays,
+          leaves: leaveDays,
+        });
+      }
+
+      return {
+        period: { start, end },
+        departments: Array.from(seenDepartments.values()),
+        items: inputs,
+      };
+    });
+  },
   async run(actor: { id: string; role: string }, periodStart: Date, periodEnd: Date) {
     if (!['admin','payroll'].includes(actor.role)) {
       const err: any = new Error('Forbidden'); err.status = 403; throw err;
@@ -88,7 +161,7 @@ export const PayrollService = {
 
       // Load employees by role (avoid tight type coupling in filters)
       const employees = await tx.user.findMany({ 
-        where: { role: { name: 'employee' }, isActive: true } 
+        where: { role: { is: { name: 'employee' } }, isActive: true } 
       });
 
       const workingDays = countWorkingDays(start, end);
@@ -124,7 +197,7 @@ export const PayrollService = {
           if (profile?.salary && Number(profile.salary) > 0) {
             salary = Number(profile.salary);
           } else if ((profile?.metadata as any)?.basicSalary) {
-            salary = Number((profile.metadata as any).basicSalary);
+            salary = Number((profile?.metadata as any).basicSalary);
           } else {
             salary = 30000; // Default minimum salary
           }

@@ -7,6 +7,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import jsPDF from 'jspdf';
+import { toast } from 'sonner';
 
 interface PayslipData {
   employeeName: string;
@@ -16,13 +18,21 @@ interface PayslipData {
   basicPay: number;
   hra: number;
   bonus: number;
+  gross: number;
   pf: number;
-  professionalTax: number;
-  tds: number;
-  officeScore: number;
-  officeScoreBonus: number;
+  employerPf: number;
+  tax: number;
+  esi: number;
+  totalDeductions: number;
+  absentDays: number;
+  dayDeduction: number;
+  extraPaidLeaveHours: number;
+  paidLeaveHourDeduction: number;
   netPay: number;
   ctc: number;
+  officeScore: number;
+  presentDays?: number;
+  workingDays?: number;
 }
 
 interface PayslipModalProps {
@@ -33,17 +43,147 @@ interface PayslipModalProps {
 
 export function PayslipModal({ open, onOpenChange, payslip }: PayslipModalProps) {
   const handleDownload = () => {
-    // Mock PDF download
-    const blob = new Blob(['Payslip PDF content'], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payslip-${payslip.payPeriod}.pdf`;
-    a.click();
+    try {
+      console.log('Starting PDF generation from modal...', payslip);
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('WorkZen', 105, 20, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Payslip for ${payslip.payPeriod}`, 105, 28, { align: 'center' });
+      
+      // Line separator
+      doc.setLineWidth(0.5);
+      doc.line(20, 32, 190, 32);
+      
+      // Employee Details
+      let yPos = 42;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Employee Details', 20, yPos);
+      
+      yPos += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Employee Name:', 20, yPos);
+      doc.text(String(payslip.employeeName), 70, yPos);
+      
+      yPos += 6;
+      doc.text('Employee ID:', 20, yPos);
+      doc.text(String(payslip.employeeId), 70, yPos);
+      
+      yPos += 6;
+      doc.text('Designation:', 20, yPos);
+      doc.text(String(payslip.designation), 70, yPos);
+      
+      yPos += 6;
+      doc.text('Pay Period:', 20, yPos);
+      doc.text(String(payslip.payPeriod), 70, yPos);
+      
+      // Earnings Section
+      yPos += 12;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Earnings', 20, yPos);
+      
+      yPos += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Basic Pay', 20, yPos);
+      doc.text(`Rs ${payslip.basicPay.toLocaleString()}`, 170, yPos, { align: 'right' });
+      
+      yPos += 6;
+      doc.text('HRA (20%)', 20, yPos);
+      doc.text(`₹${payslip.hra.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      yPos += 6;
+      doc.text(`Bonus (10% × ${payslip.officeScore}/10)`, 20, yPos);
+      doc.text(`₹${payslip.bonus.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      yPos += 8;
+      doc.setLineWidth(0.3);
+      doc.line(20, yPos, 190, yPos);
+      
+      yPos += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Gross Pay', 20, yPos);
+      doc.text(`₹${payslip.gross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      // Deductions Section
+      yPos += 12;
+      doc.text('Deductions', 20, yPos);
+      
+      yPos += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.text('PF - Employee (12%)', 20, yPos);
+      doc.text(`₹${payslip.pf.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      yPos += 6;
+      doc.text('TDS (5%)', 20, yPos);
+      doc.text(`₹${payslip.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      yPos += 6;
+      doc.text('ESI (0.75%)', 20, yPos);
+      doc.text(`₹${payslip.esi.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      if (payslip.dayDeduction > 0) {
+        yPos += 6;
+        doc.text(`Absent Days (${payslip.absentDays})`, 20, yPos);
+        doc.text(`₹${payslip.dayDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      }
+      
+      if (payslip.paidLeaveHourDeduction > 0) {
+        yPos += 6;
+        doc.text(`Excess Paid Leave (${payslip.extraPaidLeaveHours}hrs)`, 20, yPos);
+        doc.text(`₹${payslip.paidLeaveHourDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      }
+      
+      yPos += 8;
+      doc.line(20, yPos, 190, yPos);
+      
+      yPos += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total Deductions', 20, yPos);
+      doc.text(`₹${payslip.totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 170, yPos, { align: 'right' });
+      
+      // Net Pay Box
+      yPos += 12;
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, yPos - 5, 170, 20, 'F');
+      
+      doc.setFontSize(12);
+      doc.text('Net Pay', 105, yPos + 2, { align: 'center' });
+      
+      doc.setFontSize(18);
+      doc.text(`Rs ${payslip.netPay.toLocaleString()}`, 105, yPos + 10, { align: 'center' });
+      
+      // Footer
+      yPos += 25;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Employer Contributions: PF ₹${payslip.employerPf.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 20, yPos);
+      
+      yPos += 5;
+      doc.text(`CTC (Cost to Company): ₹${payslip.ctc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 20, yPos);
+      
+      yPos += 5;
+      doc.text(`Office Score: ${payslip.officeScore}/10`, 20, yPos);
+      
+      yPos += 5;
+      doc.setFont('helvetica', 'italic');
+      doc.text('This is a computer-generated payslip and does not require a signature.', 20, yPos);
+      
+      // Save PDF
+      console.log('Saving PDF from modal...');
+      doc.save(`payslip-${payslip.payPeriod.replace(/\s+/g, '-')}.pdf`);
+      console.log('PDF saved successfully from modal');
+      toast.success('Payslip downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast.error(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
-
-  const grossPay = payslip.basicPay + payslip.hra + payslip.bonus + payslip.officeScoreBonus;
-  const totalDeductions = payslip.pf + payslip.professionalTax + payslip.tds;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -92,32 +232,44 @@ export function PayslipModal({ open, onOpenChange, payslip }: PayslipModalProps)
 
           <Separator />
 
+          {/* Attendance Info */}
+          {payslip.workingDays && (
+            <div className="grid grid-cols-2 gap-4 bg-muted/50 p-3 rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground">Working Days</p>
+                <p className="font-medium">{payslip.presentDays || 0} / {payslip.workingDays}</p>
+              </div>
+              {payslip.absentDays > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Absent Days</p>
+                  <p className="font-medium text-destructive">{payslip.absentDays}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Earnings */}
           <div>
             <h3 className="mb-3 font-semibold">Earnings</h3>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Basic Pay</span>
-                <span className="font-medium">₹{payslip.basicPay.toLocaleString()}</span>
+                <span className="text-muted-foreground">Basic Pay (50%)</span>
+                <span className="font-medium">₹{payslip.basicPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">HRA</span>
-                <span className="font-medium">₹{payslip.hra.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Bonus</span>
-                <span className="font-medium">₹{payslip.bonus.toLocaleString()}</span>
+                <span className="text-muted-foreground">HRA (20%)</span>
+                <span className="font-medium">₹{payslip.hra.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Office Score Bonus ({payslip.officeScore}/10)
+                  Bonus (10% × {payslip.officeScore}/10)
                 </span>
-                <span className="font-medium">₹{payslip.officeScoreBonus.toLocaleString()}</span>
+                <span className="font-medium">₹{payslip.bonus.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <Separator />
               <div className="flex justify-between font-semibold">
                 <span>Gross Pay</span>
-                <span>₹{grossPay.toLocaleString()}</span>
+                <span>₹{payslip.gross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -127,21 +279,33 @@ export function PayslipModal({ open, onOpenChange, payslip }: PayslipModalProps)
             <h3 className="mb-3 font-semibold">Deductions</h3>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">PF (12%)</span>
-                <span className="font-medium">₹{payslip.pf.toLocaleString()}</span>
+                <span className="text-muted-foreground">PF - Employee (12%)</span>
+                <span className="font-medium">₹{payslip.pf.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Professional Tax</span>
-                <span className="font-medium">₹{payslip.professionalTax.toLocaleString()}</span>
+                <span className="text-muted-foreground">TDS (5%)</span>
+                <span className="font-medium">₹{payslip.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">TDS</span>
-                <span className="font-medium">₹{payslip.tds.toLocaleString()}</span>
+                <span className="text-muted-foreground">ESI (0.75%)</span>
+                <span className="font-medium">₹{payslip.esi.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
+              {payslip.dayDeduction > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Absent Days Deduction</span>
+                  <span className="font-medium text-destructive">₹{payslip.dayDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {payslip.paidLeaveHourDeduction > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Excess Paid Leave ({payslip.extraPaidLeaveHours}hrs)</span>
+                  <span className="font-medium text-destructive">₹{payslip.paidLeaveHourDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
               <Separator />
               <div className="flex justify-between font-semibold">
                 <span>Total Deductions</span>
-                <span>₹{totalDeductions.toLocaleString()}</span>
+                <span>₹{payslip.totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>

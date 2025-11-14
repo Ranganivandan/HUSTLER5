@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { AttendanceStatusProvider } from "./contexts/AttendanceStatusContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { queryClient } from "./lib/react-query";
 import { PageLoader } from "./components/loaders/SkeletonLoaders";
@@ -46,8 +47,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
+          <AttendanceStatusProvider>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
@@ -222,6 +224,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          </AttendanceStatusProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

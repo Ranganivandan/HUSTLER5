@@ -1,7 +1,8 @@
 import PgBoss from 'pg-boss';
 import { config } from '../config';
 
-let boss: PgBoss | null = null;
+// Use a broad type here to avoid tight coupling to pg-boss typings while preserving runtime behavior
+let boss: any | null = null;
 
 export function getBossInstance() {
   return boss;
@@ -18,7 +19,7 @@ export async function startWorker() {
   await boss.start();
 
   // Example job handler
-  await boss.work('email:send', async (job) => {
+  await boss.work('email:send', async (job: any) => {
     // TODO: integrate with real mailer
     // eslint-disable-next-line no-console
     console.log('email:send job', job.data);

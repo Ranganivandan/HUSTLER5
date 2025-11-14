@@ -46,9 +46,9 @@ export default function Users() {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    password: 'Welcome@123',
     role: 'employee',
     department: '',
+    salary: '',
   });
 
   useEffect(() => {
@@ -84,21 +84,31 @@ export default function Users() {
     
     setSubmitting(true);
     try {
-      await usersApi.create({
+      const response = await usersApi.create({
         name: newUser.name,
         email: newUser.email,
-        password: newUser.password,
-        role: newUser.role,
+        role: newUser.role as any,
+        department: newUser.department || undefined,
+        salary: newUser.salary ? Number(newUser.salary) : undefined,
       });
       
-      toast({ title: 'Success', description: `User ${newUser.name} created successfully!` });
+      // Show success message with generated password info
+      if (response.generatedPassword) {
+        toast({ 
+          title: 'User Created Successfully!', 
+          description: `Password: ${response.generatedPassword} (Credentials sent to email)`,
+          duration: 10000,
+        });
+      } else {
+        toast({ title: 'Success', description: `User ${newUser.name} created successfully!` });
+      }
       
       // Reload users list
       const res = await usersApi.list({ limit: 50, page: 1 });
       setUsers(res.items.map(toViewUser));
       
       // Reset form and close dialog
-      setNewUser({ name: '', email: '', password: 'Welcome@123', role: 'employee', department: '' });
+      setNewUser({ name: '', email: '', role: 'employee', department: '', salary: '' });
       setIsAddDialogOpen(false);
     } catch (e) {
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to create user', variant: 'destructive' });
@@ -146,15 +156,11 @@ export default function Users() {
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Default Password</Label>
-                  <Input 
-                    id="password" 
-                    type="text" 
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">User can change this after first login</p>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-sm text-blue-900 font-medium">Auto-Generated Password</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    A secure password will be automatically generated and sent to the user's email.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
@@ -186,6 +192,19 @@ export default function Users() {
                   </Select>
                   <p className="text-xs text-muted-foreground">Can be updated in profile later</p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="salary">Monthly Salary (Optional)</Label>
+                  <Input 
+                    id="salary" 
+                    type="number"
+                    placeholder="Enter monthly salary (e.g., 50000)" 
+                    value={newUser.salary}
+                    onChange={(e) => setNewUser({ ...newUser, salary: e.target.value })}
+                    min="0"
+                    step="1000"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Can be updated in profile later</p>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={submitting}>

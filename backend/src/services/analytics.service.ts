@@ -60,7 +60,18 @@ export const AnalyticsService = {
     const key = `analytics:payroll:${periodStart.toISOString().slice(0,10)}:${periodEnd.toISOString().slice(0,10)}`;
     const cached = cacheGet<any>(key);
     if (cached) return cached;
-    const payslips = await prisma.payslip.findMany({ where: { payrun: { createdAt: { gte: periodStart, lte: periodEnd } } } });
+    // If the requested period falls within a single calendar month,
+    // prefer filtering by Payrun.year/month to avoid depending on createdAt timing.
+    const singleMonth = periodStart.getFullYear() === periodEnd.getFullYear() && periodStart.getMonth() === periodEnd.getMonth();
+    let payslips;
+    if (singleMonth) {
+      const y = periodStart.getFullYear();
+      const m = periodStart.getMonth() + 1; // Prisma schema stores month as 1-12
+      payslips = await prisma.payslip.findMany({ where: { payrun: { year: y, month: m } } });
+    } else {
+      // Fallback for multi-month ranges
+      payslips = await prisma.payslip.findMany({ where: { payrun: { createdAt: { gte: periodStart, lte: periodEnd } } } });
+    }
     const totals = payslips.reduce((acc, p) => ({ gross: acc.gross + Number(p.gross), net: acc.net + Number(p.net) }), { gross: 0, net: 0 });
     cacheSet(key, totals, 60_000);
     return totals;

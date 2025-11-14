@@ -1,7 +1,8 @@
 import PgBoss from 'pg-boss';
 import { env } from '../config/env';
 
-let boss: PgBoss | null = null;
+// Use a broad type here to avoid tight coupling to pg-boss typings while preserving runtime behavior
+let boss: any | null = null;
 
 export function getBoss() {
   if (!boss) throw new Error('pg-boss not initialized');
@@ -21,7 +22,7 @@ export async function initBoss() {
   await boss.start();
 
   // Example job subscription
-  await boss.work('email:send', async (job) => {
+  await boss.work('email:send', async (job: any) => {
     // Implement email sending
     console.log('Sending email', job.data);
   });

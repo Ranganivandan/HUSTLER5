@@ -16,7 +16,6 @@ export async function cloudinaryPing() {
   // Simple no-op call to validate credentials; uses admin.ping if available via API usage
   // Here we try fetching account usage which requires valid credentials
   try {
-    // @ts-expect-error types for cloudinary admin may not be available by default
     const res = await cloudinary.api.usage();
     return res;
   } catch (e) {

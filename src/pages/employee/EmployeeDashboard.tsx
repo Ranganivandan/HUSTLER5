@@ -34,9 +34,10 @@ export default function EmployeeDashboard() {
       const leavesTaken = leaves.items?.filter((l: any) => l.status === 'APPROVED').length || 0;
       const pendingRequests = leaves.items?.filter((l: any) => l.status === 'PENDING').length || 0;
       
-      // Load profile for leave balances
-      const profile = await profileApi.getMe().catch(() => ({ metadata: {} }));
-      const leaveBalances = profile.metadata?.leaveBalances || {};
+      // Load leave balances from backend endpoint (remaining balances)
+      const balancesResp = await leavesApi.getMyBalances().catch(() => ({ balances: { CASUAL: 0, SICK: 0, EARNED: 0 }, policy: { casualLeavesYearly: 0, sickLeavesYearly: 0, privilegeLeavesYearly: 0 } } as any));
+      const leaveBalances = balancesResp.balances || { CASUAL: 0, SICK: 0, EARNED: 0 };
+      const policy = balancesResp.policy || { casualLeavesYearly: 0, sickLeavesYearly: 0, privilegeLeavesYearly: 0 };
       
       setStats({
         daysPresent: attendanceStats.days,
@@ -59,11 +60,11 @@ export default function EmployeeDashboard() {
       }
       setAttendanceData(attendanceTrend);
       
-      // Generate leave distribution
+      // Generate leave distribution (remaining balances)
       const leaveTypes = [
-        { name: 'Casual', value: leaveBalances.casual?.used || 0, color: 'hsl(var(--primary))' },
-        { name: 'Sick', value: leaveBalances.sick?.used || 0, color: 'hsl(var(--chart-2))' },
-        { name: 'Earned', value: leaveBalances.earned?.used || 0, color: 'hsl(var(--chart-3))' },
+        { name: 'Casual', value: leaveBalances.CASUAL || 0, total: policy.casualLeavesYearly || 0, color: 'hsl(var(--primary))' },
+        { name: 'Sick', value: leaveBalances.SICK || 0, total: policy.sickLeavesYearly || 0, color: 'hsl(var(--chart-2))' },
+        { name: 'Earned', value: leaveBalances.EARNED || 0, total: policy.privilegeLeavesYearly || 0, color: 'hsl(var(--chart-3))' },
       ];
       setLeaveData(leaveTypes);
       
@@ -133,7 +134,7 @@ export default function EmployeeDashboard() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
+                    label={(entry: any) => `${entry.name}: ${entry.value}/${entry.total || 0}`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"

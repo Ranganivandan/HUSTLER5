@@ -51,7 +51,6 @@ export default function Reports() {
           netPayroll: net,
         });
       }
-      setPayrollSummary(summaries);
       
       // Get department breakdown
       const profiles = await profileApi.list({ page: 1, limit: 1000 });
@@ -74,6 +73,10 @@ export default function Reports() {
         .sort((a, b) => b.totalSalary - a.totalSalary);
       
       setDepartmentBreakdown(deptData);
+      
+      // Populate Employees count in Monthly Payroll Summary from profiles
+      const totalEmployeesCount = profiles.items?.length || 0;
+      setPayrollSummary(summaries.map((row) => ({ ...row, employees: totalEmployeesCount })));
       
       // Statutory report (calculated estimates)
       const totalGross = summaries[0]?.grossPayroll || 0;

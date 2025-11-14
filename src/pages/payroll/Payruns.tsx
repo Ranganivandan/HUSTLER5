@@ -40,6 +40,7 @@ export default function Payruns() {
   const [currentTemplate, setCurrentTemplate] = useState('default');
   const [loading, setLoading] = useState(false);
   const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
+  const [departments, setDepartments] = useState<string[]>(['All']);
   const [submitting, setSubmitting] = useState(false);
   
   // Payroll configuration
@@ -60,45 +61,34 @@ export default function Payruns() {
 
   useEffect(() => {
     loadEmployees();
-  }, []); // Load once on mount
+  }, [selectedPeriod, selectedDepartment]); // Reload when period/department changes
 
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      // Load all employee profiles
-      const profiles = await profileApi.list({ page: 1, limit: 100 });
-      
-      if (!profiles.items || profiles.items.length === 0) {
-        sonnerToast.info('No employees found. Please add employees first.');
-        setEmployees([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Get attendance for selected period
+      // Calculate period dates
       const [year, month] = selectedPeriod.split('-');
-      const monthStr = `${year}-${month}`;
-      
-      // Map employees without parallel attendance calls to avoid overwhelming the API
-      const employeeData: PayrollEmployee[] = profiles.items.map((p: any) => {
-        // Debug: Log department data
-        if (!p.department) {
-          console.warn('Employee missing department:', p.user?.name, p);
-        }
-        
-        return {
-          id: p.userId,
-          name: p.user?.name || 'Unknown',
-          employeeCode: p.employeeCode || 'N/A',
-          department: p.department || 'Unassigned',
-          basicPay: (p.metadata?.basicSalary as number) || 30000,
-          officeScore: 8.0, // TODO: Get from performance data
-          attendance: 22, // Default working days, will be calculated during payroll run
-          leaves: 0,
-        };
-      });
-      
+      const periodStart = `${year}-${month}-01`;
+      const lastDay = new Date(Number(year), Number(month), 0).getDate();
+      const periodEnd = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+
+      const resp = await payrollApi.getInputs({ periodStart, periodEnd, department: selectedDepartment === 'all' ? undefined : selectedDepartment });
+      const items = resp.items || [];
+      const depts = resp.departments || [];
+
+      const employeeData: PayrollEmployee[] = items.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        employeeCode: p.employeeCode,
+        department: p.department || 'Unassigned',
+        basicPay: p.basicPay || 30000,
+        officeScore: p.officeScore || 8.0,
+        attendance: p.attendance || 0,
+        leaves: p.leaves || 0,
+      }));
+
       setEmployees(employeeData);
+      setDepartments(['All', ...depts.filter((d) => !!d)]);
       sonnerToast.success(`Loaded ${employeeData.length} employees`);
     } catch (e) {
       sonnerToast.error(e instanceof Error ? e.message : 'Failed to load employees');
@@ -277,11 +267,9 @@ export default function Payruns() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Departments</SelectItem>
-                        <SelectItem value="Product">Product</SelectItem>
-                        <SelectItem value="Engineering">Engineering</SelectItem>
-                        <SelectItem value="Sales">Sales</SelectItem>
-                        <SelectItem value="HR">HR</SelectItem>
-                        <SelectItem value="Finance">Finance</SelectItem>
+                        {departments.filter((d) => d && d.toLowerCase() !== 'all').map((d) => (
+                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

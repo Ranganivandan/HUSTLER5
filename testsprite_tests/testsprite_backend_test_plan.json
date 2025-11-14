@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "dynamic kpis data accuracy",
+    "description": "Verify that all KPIs displayed on the admin dashboard are dynamically sourced from real database data via analytics APIs and reflect accurate, real-time data consistent with backend database records."
+  },
+  {
+    "id": "TC002",
+    "title": "real time graphs update",
+    "description": "Test that all four dynamic graphs (Employee Growth Trend, Payroll Cost Trend, Department Performance, Attendance Distribution) update correctly with live data, showing accurate trends, segmented information, legends, and labels."
+  },
+  {
+    "id": "TC003",
+    "title": "top performers list correctness",
+    "description": "Validate that the top performing employees list is dynamically generated based on employee profiles and salary information, correctly scored, sorted, and displays accurate names and departments."
+  },
+  {
+    "id": "TC004",
+    "title": "human readable recent activity logs",
+    "description": "Ensure that recent activity logs are converted from raw audit entries into human-readable descriptions with relative timestamps, without exposing raw API data or internal terminology."
+  },
+  {
+    "id": "TC005",
+    "title": "company summary metrics accuracy",
+    "description": "Check that company summary metrics including attrition rate, new joinees count, leaves utilized percentage, and average deductions are accurately derived from multiple live data sources and the textual summary is coherent and factual."
+  },
+  {
+    "id": "TC006",
+    "title": "dashboard responsiveness and accessibility",
+    "description": "Verify that all visual components of the dashboard, including KPIs, graphs, lists, and summaries, are responsive across devices, accessible, and free from visual defects or broken layouts."
+  },
+  {
+    "id": "TC007",
+    "title": "performance optimization with parallel data fetching",
+    "description": "Test that the dashboard fetches data via multiple API calls simultaneously to minimize loading times and that backend caching mechanisms are effective, ensuring no unnecessary sequential API calls."
+  },
+  {
+    "id": "TC008",
+    "title": "error handling for data endpoints",
+    "description": "Validate that the system gracefully handles errors from data endpoints by notifying users appropriately and degrading functionality without crashing or showing raw errors."
+  },
+  {
+    "id": "TC009",
+    "title": "recent activity formatting edge cases",
+    "description": "Test edge cases for recent activity logs formatting, including very old entries, simultaneous events, and unusual audit data, ensuring human-readable descriptions remain clear and accurate."
+  },
+  {
+    "id": "TC010",
+    "title": "top performers scoring logic edge cases",
+    "description": "Verify the scoring logic for top performers with edge cases such as employees with identical scores, missing salary data, or new hires, ensuring correct sorting and display."
+  }
+]
